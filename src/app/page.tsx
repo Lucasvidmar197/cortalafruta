@@ -80,7 +80,8 @@ export default function Home() {
                       'camera-controls': true,
                       ar: true,
                       'ar-modes': "webxr scene-viewer quick-look",
-                      'ar-scale': "fixed",
+                      'shadow-intensity': "1",
+                      'environment-image': "neutral",
                       style: { width: "100%", height: "100%" },
                       class: "w-full h-full object-contain"
                     })
