@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import React, { useEffect, useState } from "react";
 import Link from "next/link";
 
 interface MenuItem {
@@ -71,17 +71,17 @@ export default function Home() {
               <div key={item.id} className="bg-white rounded-2xl shadow-md overflow-hidden flex flex-col">
                 <div className="h-64 bg-gray-200 relative w-full flex items-center justify-center overflow-hidden">
                   {item.glbUrl ? (
-                    <model-viewer
-                      src={item.glbUrl}
-                      ios-src={item.usdzUrl || undefined}
-                      alt={`Modelo 3D de ${item.name}`}
-                      auto-rotate
-                      camera-controls
-                      ar
-                      ar-scale="fixed"
-                      style={{ width: "100%", height: "100%" }}
-                      className="w-full h-full object-contain"
-                    ></model-viewer>
+                    React.createElement('model-viewer', {
+                      src: item.glbUrl,
+                      'ios-src': item.usdzUrl || undefined,
+                      alt: `Modelo 3D de ${item.name}`,
+                      'auto-rotate': true,
+                      'camera-controls': true,
+                      ar: true,
+                      'ar-scale': "fixed",
+                      style: { width: "100%", height: "100%" },
+                      class: "w-full h-full object-contain"
+                    })
                   ) : (
                     <div className="text-gray-400">Sin modelo 3D</div>
                   )}
