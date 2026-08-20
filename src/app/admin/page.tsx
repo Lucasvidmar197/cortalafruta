@@ -7,6 +7,17 @@ import Link from "next/link";
 export default function AdminPage() {
   const router = useRouter();
   const [loading, setLoading] = useState(false);
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [password, setPassword] = useState("");
+
+  const handleLogin = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (password === "admin123") {
+      setIsAuthenticated(true);
+    } else {
+      alert("Contraseña incorrecta. (Usa: admin123)");
+    }
+  };
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
@@ -65,92 +76,132 @@ export default function AdminPage() {
     }
   };
 
+  if (!isAuthenticated) {
+    return (
+      <div className="min-h-screen bg-slate-50 flex items-center justify-center p-4">
+        <form onSubmit={handleLogin} className="bg-white p-8 rounded-3xl shadow-xl w-full max-w-sm text-center border border-slate-100">
+          <div className="w-16 h-16 bg-orange-100 rounded-full mx-auto flex items-center justify-center mb-6">
+            <span className="text-2xl">🔒</span>
+          </div>
+          <h2 className="text-2xl font-bold text-slate-900 mb-2">Panel de Control</h2>
+          <p className="text-slate-500 text-sm mb-6">Ingresa para administrar el menú</p>
+          
+          <input
+            type="password"
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            placeholder="Contraseña"
+            className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:border-orange-500 focus:ring-2 focus:ring-orange-200 transition-all mb-4 outline-none"
+          />
+          <button type="submit" className="w-full py-3 bg-slate-900 hover:bg-slate-800 text-white font-bold rounded-xl transition-all">
+            Ingresar
+          </button>
+          <p className="text-xs text-slate-400 mt-4">Demo password: admin123</p>
+        </form>
+      </div>
+    );
+  }
+
   return (
-    <div className="min-h-screen bg-gray-50 p-6 text-gray-800">
-      <div className="max-w-2xl mx-auto bg-white rounded-2xl shadow p-8">
-        <div className="flex justify-between items-center mb-6">
-          <h1 className="text-3xl font-bold text-gray-800">Agregar Plato</h1>
-          <Link href="/" className="text-sm text-blue-600 hover:underline">
-            Volver al menú
+    <div className="min-h-screen bg-slate-50 p-6 text-slate-800 font-sans">
+      <div className="max-w-3xl mx-auto bg-white rounded-[2rem] shadow-sm border border-slate-100 p-8">
+        <div className="flex justify-between items-center mb-8 border-b border-slate-100 pb-6">
+          <div>
+            <h1 className="text-2xl font-black text-slate-900">Agregar Plato Nuevo</h1>
+            <p className="text-slate-500 text-sm mt-1">Completa los detalles para publicarlo en el menú AR.</p>
+          </div>
+          <Link href="/" className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 text-sm font-bold rounded-full transition-colors">
+            Ver menú público
           </Link>
         </div>
         
         <form onSubmit={handleSubmit} className="space-y-6">
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">Nombre del Plato</label>
-            <input 
-              name="name" 
-              type="text" 
-              required 
-              className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 bg-white"
-              placeholder="Ej. Hamburguesa Doble"
-            />
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div>
+              <label className="block text-sm font-bold text-slate-700 mb-2">Nombre del Plato</label>
+              <input 
+                name="name" 
+                type="text" 
+                required 
+                className="w-full px-4 py-3 border border-slate-200 rounded-xl focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500 outline-none transition-all"
+                placeholder="Ej. Hamburguesa Doble"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-bold text-slate-700 mb-2">Precio ($)</label>
+              <input 
+                name="price" 
+                type="number" 
+                step="0.01"
+                required 
+                className="w-full px-4 py-3 border border-slate-200 rounded-xl focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500 outline-none transition-all"
+                placeholder="12.99"
+              />
+            </div>
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">Descripción</label>
+            <label className="block text-sm font-bold text-slate-700 mb-2">Descripción</label>
             <textarea 
               name="description" 
               required 
               rows={3}
-              className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 bg-white"
-              placeholder="Breve descripción del plato..."
+              className="w-full px-4 py-3 border border-slate-200 rounded-xl focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500 outline-none transition-all resize-none"
+              placeholder="Describe los ingredientes principales..."
             ></textarea>
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">Precio ($)</label>
-            <input 
-              name="price" 
-              type="number" 
-              step="0.01"
-              required 
-              className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 bg-white"
-              placeholder="12.99"
-            />
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">Escala 3D (Ej: 0.1 para achicar, 1 para original)</label>
-            <input 
-              name="scale" 
-              type="number" 
-              step="0.01"
-              defaultValue="1"
-              required 
-              className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 bg-white"
-              placeholder="1"
-            />
-          </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6 p-4 bg-gray-50 rounded-xl border">
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">Modelo 3D (Android/Web - .glb)</label>
+            <label className="block text-sm font-bold text-slate-700 mb-2">Escala 3D en AR</label>
+            <div className="flex gap-4 items-center">
               <input 
-                name="glb" 
-                type="file" 
-                accept=".glb"
-                className="w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-blue-100 file:text-blue-700 hover:file:bg-blue-200"
+                name="scale" 
+                type="number" 
+                step="0.01"
+                defaultValue="1"
+                required 
+                className="w-32 px-4 py-3 border border-slate-200 rounded-xl focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500 outline-none transition-all"
               />
+              <span className="text-sm text-slate-500">Usa 0.1 para reducirlo al 10%, o 1 para tamaño original.</span>
             </div>
-            
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">Modelo 3D (iOS - .usdz) [Opcional]</label>
-              <input 
-                name="usdz" 
-                type="file" 
-                accept=".usdz"
-                className="w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-blue-100 file:text-blue-700 hover:file:bg-blue-200"
-              />
+          </div>
+
+          <div className="mt-8 pt-8 border-t border-slate-100">
+            <h3 className="text-lg font-bold text-slate-900 mb-4">Archivos 3D (Opcional)</h3>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <div className="p-5 bg-slate-50 rounded-2xl border border-slate-200 border-dashed">
+                <label className="block text-sm font-bold text-slate-700 mb-3">Formato Web/Android (.glb)</label>
+                <input 
+                  name="glb" 
+                  type="file" 
+                  accept=".glb"
+                  className="w-full text-sm text-slate-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-bold file:bg-orange-100 file:text-orange-600 hover:file:bg-orange-200 transition-all cursor-pointer"
+                />
+              </div>
+              
+              <div className="p-5 bg-slate-50 rounded-2xl border border-slate-200 border-dashed">
+                <label className="block text-sm font-bold text-slate-700 mb-3">Formato iOS (.usdz)</label>
+                <input 
+                  name="usdz" 
+                  type="file" 
+                  accept=".usdz"
+                  className="w-full text-sm text-slate-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-bold file:bg-blue-50 file:text-blue-600 hover:file:bg-blue-100 transition-all cursor-pointer"
+                />
+              </div>
             </div>
           </div>
 
           <button 
             type="submit" 
             disabled={loading}
-            className="w-full py-3 px-4 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-lg transition-colors disabled:bg-blue-300"
+            className="w-full py-4 mt-8 bg-slate-900 hover:bg-slate-800 text-white font-bold rounded-xl transition-all shadow-lg shadow-slate-900/20 disabled:bg-slate-300 disabled:shadow-none"
           >
-            {loading ? "Guardando..." : "Guardar Plato"}
+            {loading ? (
+              <span className="flex items-center justify-center gap-2">
+                <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>
+                Guardando Plato...
+              </span>
+            ) : "Publicar Plato en el Menú"}
           </button>
         </form>
       </div>
