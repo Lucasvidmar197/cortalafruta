@@ -10,6 +10,7 @@ interface MenuItem {
   price: number;
   glbUrl: string;
   usdzUrl: string;
+  scale?: number;
 }
 
 export default function Home() {
@@ -82,6 +83,7 @@ export default function Home() {
                       'ar-modes': "webxr scene-viewer quick-look",
                       'shadow-intensity': "1",
                       'environment-image': "neutral",
+                      scale: `${item.scale || 1} ${item.scale || 1} ${item.scale || 1}`,
                       style: { width: "100%", height: "100%" },
                       class: "w-full h-full object-contain"
                     })

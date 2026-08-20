@@ -46,6 +46,7 @@ export default function AdminPage() {
           name,
           description,
           price: parseFloat(price),
+          scale: parseFloat(formData.get("scale") as string) || 1,
           glbUrl: uploadedFiles.glb || "",
           usdzUrl: uploadedFiles.usdz || "",
         }),
@@ -106,6 +107,19 @@ export default function AdminPage() {
               required 
               className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 bg-white"
               placeholder="12.99"
+            />
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">Escala 3D (Ej: 0.1 para achicar, 1 para original)</label>
+            <input 
+              name="scale" 
+              type="number" 
+              step="0.01"
+              defaultValue="1"
+              required 
+              className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 bg-white"
+              placeholder="1"
             />
           </div>
 
