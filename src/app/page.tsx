@@ -72,12 +72,14 @@ export default function Home() {
                 <div className="h-64 bg-gray-200 relative w-full flex items-center justify-center overflow-hidden">
                   {item.glbUrl ? (
                     React.createElement('model-viewer', {
+                      id: `viewer-${item.id}`,
                       src: item.glbUrl,
                       'ios-src': item.usdzUrl || undefined,
                       alt: `Modelo 3D de ${item.name}`,
                       'auto-rotate': true,
                       'camera-controls': true,
                       ar: true,
+                      'ar-modes': "webxr scene-viewer quick-look",
                       'ar-scale': "fixed",
                       style: { width: "100%", height: "100%" },
                       class: "w-full h-full object-contain"
@@ -104,11 +106,15 @@ export default function Home() {
                   {item.glbUrl && (
                     <button
                       onClick={() => {
-                        const viewer = document.querySelector(`model-viewer[src="${item.glbUrl}"]`) as any;
-                        if (viewer && viewer.canActivateAR) {
-                          viewer.activateAR();
+                        const viewer = document.getElementById(`viewer-${item.id}`) as any;
+                        if (viewer) {
+                          if (viewer.canActivateAR) {
+                            viewer.activateAR();
+                          } else {
+                            alert("La realidad aumentada no está disponible en este dispositivo (se requiere Safari en iOS o Chrome en Android con ARCore).");
+                          }
                         } else {
-                          alert("La realidad aumentada no está disponible en este dispositivo o navegador.");
+                          alert("Error al cargar el componente 3D.");
                         }
                       }}
                       className="mt-6 w-full py-3 bg-gray-900 hover:bg-gray-800 text-white font-medium rounded-xl flex items-center justify-center gap-2 transition-colors"
