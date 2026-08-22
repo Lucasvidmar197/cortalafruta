@@ -117,12 +117,10 @@ export default function Home() {
                         'disable-zoom': true,
                         'disable-pan': true,
                         ar: true,
-                        'ar-modes': "webxr scene-viewer quick-look",
-                        'ar-scale': "fixed",
+                        'ar-modes': "scene-viewer webxr quick-look",
                         'shadow-intensity': "1.5",
                         'environment-image': "neutral",
-                        scale: `${item.scale || 1} ${item.scale || 1} ${item.scale || 1}`,
-                        style: { width: "100%", height: "100%" },
+                        style: { width: "100%", height: "100%", transform: `scale(${item.scale || 1})` },
                         class: "w-full h-full object-contain cursor-grab active:cursor-grabbing"
                       })
                     ) : (
