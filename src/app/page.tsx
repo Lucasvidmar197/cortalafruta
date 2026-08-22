@@ -41,7 +41,16 @@ function MenuContent() {
     if (typeof window !== "undefined") {
       const params = new URLSearchParams(window.location.search);
       const mesa = params.get("mesa");
-      if (mesa) setTableNumber(mesa);
+      if (mesa) {
+        supabase.from('tables').select('name').eq('name', mesa).single().then(({ data }) => {
+          if (data) {
+            setTableNumber(mesa);
+          } else {
+            setNotificationMsg(`La mesa "${mesa}" no existe. Modo catálogo activado.`);
+            setTimeout(() => setNotificationMsg(""), 5000);
+          }
+        });
+      }
     }
 
     fetch("/api/menu?t=" + Date.now(), { 
