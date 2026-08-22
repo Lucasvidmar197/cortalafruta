@@ -39,30 +39,6 @@ export default function Home() {
       });
   }, []);
 
-  // Forzar materiales planos (sin reflejos) para escaneos fotogramétricos
-  useEffect(() => {
-    if (menu.length === 0) return;
-    const timer = setTimeout(() => {
-      const viewers = document.querySelectorAll('model-viewer');
-      viewers.forEach((viewer: any) => {
-        const applyFlat = () => {
-          try {
-            const model = viewer.model;
-            if (model) {
-              for (const material of model.materials) {
-                material.pbrMetallicRoughness.setMetallicFactor(0);
-                material.pbrMetallicRoughness.setRoughnessFactor(1);
-              }
-            }
-          } catch (e) { /* modelo aún no cargado */ }
-        };
-        if (viewer.loaded) applyFlat();
-        viewer.addEventListener('load', applyFlat);
-      });
-    }, 500);
-    return () => clearTimeout(timer);
-  }, [menu]);
-
   return (
     <div className="min-h-screen bg-zinc-50 text-zinc-900 pb-20 font-serif">
       {/* Header Premium (Fine Dining) */}
@@ -136,22 +112,21 @@ export default function Home() {
                         src: item.glbUrl,
                         'ios-src': item.usdzUrl || undefined,
                         alt: `Modelo 3D de ${item.name}`,
-                        'auto-rotate': true,
+                        ar: true,
+                        'ar-modes': "webxr scene-viewer quick-look",
+                        'ar-scale': "auto",
+                        'ar-placement': "floor",
                         'camera-controls': true,
+                        'auto-rotate': true,
                         'disable-zoom': true,
                         'disable-pan': true,
-                        'interaction-prompt': "none",
-                        ar: true,
-                        'ar-modes': "webxr quick-look scene-viewer",
-                        'ar-placement': "floor",
-                        'ar-scale': "fixed",
-                        'min-camera-orbit': "auto 60deg auto",
-                        'max-camera-orbit': "auto 90deg auto",
-                        'tone-mapping': "neutral",
-                        'exposure': "1",
-                        'shadow-intensity': "0.3",
-                        'shadow-softness': "1",
-                        style: { width: "100%", height: "100%" },
+                        'shadow-intensity': "1.0",
+                        'exposure': "0.6",
+                        'tone-mapping': "aces",
+                        'environment-image': "neutral",
+                        'loading': "eager",
+                        'reveal': "auto",
+                        style: { width: "100%", height: "100%", backgroundColor: "transparent" },
                         class: "w-full h-full object-contain"
                       })
                     ) : (
