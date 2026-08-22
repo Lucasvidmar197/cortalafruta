@@ -13,7 +13,12 @@ export default function AdminPage() {
   const [password, setPassword] = useState("");
   const [email, setEmail] = useState("");
   const [authError, setAuthError] = useState("");
-  const [activeTab, setActiveTab] = useState<"cocina" | "menu" | "salon">("cocina");
+  const [activeTab, setActiveTab] = useState<"cocina" | "menu" | "salon" | "caja">("cocina");
+  
+  // Billing States
+  const [billingTable, setBillingTable] = useState<any>(null);
+  const [customChargeName, setCustomChargeName] = useState("");
+  const [customChargePrice, setCustomChargePrice] = useState("");
 
   // Realtime States
   const [orders, setOrders] = useState<any[]>([]);
@@ -279,6 +284,56 @@ export default function AdminPage() {
   };
 
   // =========================================================================
+  // BILLING / CAJA LOGIC
+  // =========================================================================
+  
+  const handleAddCustomCharge = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!billingTable || !customChargeName || !customChargePrice) return;
+    setLoading(true);
+    
+    const price = parseFloat(customChargePrice);
+    const itemJson = [{ id: 'custom-' + Date.now(), name: customChargeName, quantity: 1, price: price }];
+    
+    await supabase.from('orders').insert({
+      table_number: billingTable.name,
+      items: itemJson,
+      total: price,
+      status: 'Entregado' // Ya entregado, no pasa por cocina
+    });
+    
+    setCustomChargeName("");
+    setCustomChargePrice("");
+    fetchData();
+    setLoading(false);
+  };
+
+  const handleCheckout = async () => {
+    if (!billingTable) return;
+    if (!confirm(`¿Cerrar la mesa ${billingTable.name} y marcar todo como Pagado?`)) return;
+    setLoading(true);
+    
+    // 1. Mark orders as Pagado
+    const tableOrders = orders.filter(o => o.table_number === billingTable.name && o.status !== 'Pagado');
+    for (const order of tableOrders) {
+      await supabase.from('orders').update({ status: 'Pagado' }).eq('id', order.id);
+    }
+    
+    // 2. Clear table requests
+    const tableRequests = requests.filter(r => r.table_number === billingTable.name && r.status !== 'Resuelto');
+    for (const req of tableRequests) {
+      await supabase.from('service_requests').update({ status: 'Resuelto' }).eq('id', req.id);
+    }
+    
+    // 3. Set table to Libre
+    await supabase.from('tables').update({ status: 'Libre' }).eq('id', billingTable.id);
+    
+    setBillingTable(null);
+    fetchData();
+    setLoading(false);
+  };
+
+  // =========================================================================
   // RENDER
   // =========================================================================
 
@@ -300,7 +355,7 @@ export default function AdminPage() {
   }
 
   const pendingOrders = orders.filter(o => o.status === 'Pendiente');
-  const pastOrders = orders.filter(o => o.status !== 'Pendiente').slice(0, 5);
+  const paidOrders = orders.filter(o => o.status === 'Pagado');
   const pendingRequests = requests.filter(r => r.status === 'Pendiente');
   const uniqueCategories = Array.from(new Set(menuItems.map(item => item.category || "Destacados")));
   
@@ -339,6 +394,9 @@ export default function AdminPage() {
           </button>
           <button onClick={() => setActiveTab("menu")} className={`px-6 md:px-8 py-4 text-[10px] md:text-xs tracking-widest uppercase transition-colors border-b-2 whitespace-nowrap ${activeTab === 'menu' ? 'border-zinc-900 text-zinc-900 font-medium' : 'border-transparent text-zinc-500 hover:text-zinc-700'}`}>
             Gestión de Platos
+          </button>
+          <button onClick={() => setActiveTab("caja")} className={`px-6 md:px-8 py-4 text-[10px] md:text-xs tracking-widest uppercase transition-colors border-b-2 whitespace-nowrap ${activeTab === 'caja' ? 'border-zinc-900 text-zinc-900 font-medium' : 'border-transparent text-zinc-500 hover:text-zinc-700'}`}>
+            Caja e Historial
           </button>
         </div>
       </div>
@@ -518,6 +576,9 @@ export default function AdminPage() {
                       </div>
 
                       <div className="flex gap-2 mt-4 pt-4 border-t border-zinc-100">
+                        {table.status !== 'Libre' && (
+                          <button onClick={() => setBillingTable(table)} className="flex-1 py-2 bg-zinc-900 text-white hover:bg-zinc-800 text-xs tracking-widest uppercase transition-colors">💳 Cuenta</button>
+                        )}
                         <button onClick={() => setPrintingTable(table)} className="flex-1 py-2 bg-zinc-100 hover:bg-zinc-200 text-zinc-800 text-xs tracking-widest uppercase transition-colors">🖨️ QR</button>
                         <button onClick={() => setEditingTable(table)} className="w-10 flex items-center justify-center bg-zinc-100 hover:bg-zinc-200 transition-colors">✏️</button>
                         <button onClick={() => deleteTable(table.id)} className="w-10 flex items-center justify-center bg-red-50 text-red-500 hover:bg-red-100 transition-colors">🗑️</button>
@@ -588,6 +649,85 @@ export default function AdminPage() {
                 </div>
               </div>
             )}
+
+            {/* Modal de Facturación (Ver Cuenta) */}
+            {billingTable && (() => {
+              const tableOrders = orders.filter(o => o.table_number === billingTable.name && o.status !== 'Pagado');
+              const allItems = tableOrders.flatMap(o => o.items);
+              const totalAmount = tableOrders.reduce((sum, o) => sum + Number(o.total), 0);
+
+              return (
+                <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+                  <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={() => setBillingTable(null)}></div>
+                  <div className="relative bg-white w-full max-w-md shadow-2xl flex flex-col max-h-[90vh]">
+                    <div className="p-6 border-b border-zinc-100 flex justify-between items-center bg-zinc-50">
+                      <div>
+                        <h2 className="font-light text-xl tracking-wide uppercase">Cuenta</h2>
+                        <p className="text-xs text-zinc-500 tracking-widest uppercase mt-1">{billingTable.name}</p>
+                      </div>
+                      <button onClick={() => setBillingTable(null)} className="text-zinc-400 hover:text-zinc-900 text-2xl font-light">&times;</button>
+                    </div>
+                    
+                    <div className="p-6 overflow-y-auto flex-grow">
+                      {allItems.length === 0 ? (
+                        <p className="text-zinc-500 text-sm italic">No hay consumos registrados para esta mesa.</p>
+                      ) : (
+                        <div className="space-y-4">
+                          {allItems.map((item: any, i: number) => (
+                            <div key={i} className="flex justify-between text-sm border-b border-zinc-50 pb-2">
+                              <div>
+                                <span className="font-medium mr-2">{item.quantity}x</span>
+                                <span>{item.name}</span>
+                              </div>
+                              <span className="font-medium">${(item.price * item.quantity).toFixed(2)}</span>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                      
+                      {/* Formulario de Cargo Extra */}
+                      <form onSubmit={handleAddCustomCharge} className="mt-8 pt-6 border-t border-zinc-200">
+                        <p className="text-xs font-medium tracking-widest uppercase text-zinc-500 mb-4">Agregar Cargo Extra</p>
+                        <div className="flex gap-2">
+                          <input 
+                            type="text" 
+                            placeholder="Ej: Servicio de Mesa" 
+                            value={customChargeName}
+                            onChange={(e) => setCustomChargeName(e.target.value)}
+                            className="flex-grow px-3 py-2 border border-zinc-200 text-sm outline-none focus:border-zinc-400"
+                          />
+                          <input 
+                            type="number" 
+                            placeholder="$ 0.00" 
+                            step="0.01"
+                            value={customChargePrice}
+                            onChange={(e) => setCustomChargePrice(e.target.value)}
+                            className="w-24 px-3 py-2 border border-zinc-200 text-sm outline-none focus:border-zinc-400"
+                          />
+                          <button type="submit" disabled={!customChargeName || !customChargePrice || loading} className="px-4 bg-zinc-100 hover:bg-zinc-200 text-xs tracking-widest uppercase transition-colors disabled:opacity-50">
+                            Añadir
+                          </button>
+                        </div>
+                      </form>
+                    </div>
+
+                    <div className="p-6 border-t border-zinc-100 bg-zinc-50">
+                      <div className="flex justify-between items-center mb-6">
+                        <span className="text-sm font-medium uppercase tracking-widest text-zinc-500">Total a Pagar</span>
+                        <span className="text-2xl font-bold">${totalAmount.toFixed(2)}</span>
+                      </div>
+                      <button 
+                        onClick={handleCheckout} 
+                        disabled={loading || totalAmount === 0}
+                        className="w-full py-4 bg-zinc-900 text-white font-sans text-xs tracking-widest uppercase hover:bg-zinc-800 transition-colors disabled:opacity-50 flex justify-center items-center h-[52px]"
+                      >
+                        {loading ? <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div> : "Cobrar y Liberar Mesa"}
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              );
+            })()}
           </div>
         )}
 
@@ -716,6 +856,58 @@ export default function AdminPage() {
                 </div>
               </div>
             )}
+          </div>
+        )}
+
+        {/* ========================================================================= */}
+        {/* TAB 4: CAJA E HISTORIAL */}
+        {/* ========================================================================= */}
+        {activeTab === "caja" && (
+          <div className="space-y-8">
+            <div className="bg-zinc-900 text-white p-8 flex justify-between items-center shadow-lg">
+              <div>
+                <h2 className="text-sm tracking-widest uppercase font-medium opacity-80 mb-1">Total Ingresos</h2>
+                <p className="text-4xl font-light">
+                  ${paidOrders.reduce((sum, o) => sum + Number(o.total), 0).toFixed(2)}
+                </p>
+              </div>
+              <div className="text-right hidden sm:block">
+                <p className="text-sm tracking-widest uppercase font-medium opacity-80 mb-1">Órdenes Pagadas</p>
+                <p className="text-2xl font-light">{paidOrders.length}</p>
+              </div>
+            </div>
+
+            <div>
+              <h3 className="text-sm tracking-widest uppercase font-medium border-b border-zinc-200 pb-2 mb-6">Historial de Ventas</h3>
+              {paidOrders.length === 0 ? (
+                <p className="text-zinc-500 italic text-sm">No hay ventas registradas.</p>
+              ) : (
+                <div className="space-y-4">
+                  {paidOrders.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()).map(order => (
+                    <div key={order.id} className="bg-white border border-zinc-200 p-6 shadow-sm flex flex-col md:flex-row md:justify-between md:items-center gap-4">
+                      <div>
+                        <div className="flex items-center gap-3 mb-2">
+                          <span className="bg-green-100 text-green-800 text-[10px] px-2 py-1 tracking-widest uppercase font-medium">Pagado</span>
+                          <span className="text-sm font-medium">{order.table_number}</span>
+                          <span className="text-xs text-zinc-400">{new Date(order.created_at).toLocaleString()}</span>
+                        </div>
+                        <div className="text-sm text-zinc-600">
+                          {order.items.map((item: any, i: number) => (
+                            <span key={i}>
+                              {item.quantity}x {item.name}{i < order.items.length - 1 ? ', ' : ''}
+                            </span>
+                          ))}
+                        </div>
+                      </div>
+                      <div className="text-left md:text-right">
+                        <p className="text-xs tracking-widest uppercase text-zinc-500 mb-1">Total Cobrado</p>
+                        <p className="text-xl font-medium">${Number(order.total).toFixed(2)}</p>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
           </div>
         )}
       </div>
