@@ -1,5 +1,7 @@
 import { NextResponse } from 'next/server';
 import { supabase } from '@/lib/supabase';
+import { NodeIO } from '@gltf-transform/core';
+import { KHRMaterialsUnlit } from '@gltf-transform/extensions';
 
 export async function POST(request: Request) {
   try {
@@ -14,15 +16,14 @@ export async function POST(request: Request) {
 
     const resultPaths: { glb?: string; usdz?: string; images?: string[] } = { images: [] };
 
-    // Función auxiliar para subir a Supabase Storage
-    const uploadToSupabase = async (file: File) => {
+    const uploadToSupabase = async (file: File | Blob, fileNameStr: string, contentType: string) => {
       const buffer = await file.arrayBuffer();
-      const fileName = `${Date.now()}-${file.name.replace(/\\s+/g, '_')}`;
+      const fileName = `${Date.now()}-${fileNameStr.replace(/\\s+/g, '_')}`;
       
       const { data, error } = await supabase.storage
         .from('menu-assets')
         .upload(fileName, buffer, {
-          contentType: file.type || 'application/octet-stream',
+          contentType: contentType,
           upsert: false
         });
 
@@ -36,16 +37,36 @@ export async function POST(request: Request) {
     };
 
     if (glbFile && glbFile.size > 0) {
-      resultPaths.glb = await uploadToSupabase(glbFile);
+      try {
+        // Inyectar Unlit para desactivar el "sol virtual" en AR
+        const io = new NodeIO().registerExtensions([KHRMaterialsUnlit]);
+        const buffer = await glbFile.arrayBuffer();
+        const doc = await io.readBinary(new Uint8Array(buffer));
+        const unlitExtension = doc.createExtension(KHRMaterialsUnlit);
+        const unlit = unlitExtension.createUnlit();
+        
+        for (const material of doc.getRoot().listMaterials()) {
+          material.setExtension('KHR_materials_unlit', unlit);
+          material.setMetallicFactor(0);
+          material.setRoughnessFactor(1);
+        }
+        
+        const modifiedBuffer = await io.writeBinary(doc);
+        const modifiedBlob = new Blob([modifiedBuffer], { type: 'model/gltf-binary' });
+        resultPaths.glb = await uploadToSupabase(modifiedBlob, glbFile.name, 'model/gltf-binary');
+      } catch (err) {
+        console.error("Error processing GLB, uploading original:", err);
+        resultPaths.glb = await uploadToSupabase(glbFile, glbFile.name, glbFile.type || 'model/gltf-binary');
+      }
     }
 
     if (usdzFile && usdzFile.size > 0) {
-      resultPaths.usdz = await uploadToSupabase(usdzFile);
+      resultPaths.usdz = await uploadToSupabase(usdzFile, usdzFile.name, usdzFile.type || 'model/vnd.usdz+zip');
     }
 
     for (const img of imageFiles) {
       if (img.size > 0) {
-        const url = await uploadToSupabase(img);
+        const url = await uploadToSupabase(img, img.name, img.type || 'image/jpeg');
         resultPaths.images!.push(url);
       }
     }
