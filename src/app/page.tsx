@@ -39,6 +39,30 @@ export default function Home() {
       });
   }, []);
 
+  // Forzar materiales planos (sin reflejos) para escaneos fotogramétricos
+  useEffect(() => {
+    if (menu.length === 0) return;
+    const timer = setTimeout(() => {
+      const viewers = document.querySelectorAll('model-viewer');
+      viewers.forEach((viewer: any) => {
+        const applyFlat = () => {
+          try {
+            const model = viewer.model;
+            if (model) {
+              for (const material of model.materials) {
+                material.pbrMetallicRoughness.setMetallicFactor(0);
+                material.pbrMetallicRoughness.setRoughnessFactor(1);
+              }
+            }
+          } catch (e) { /* modelo aún no cargado */ }
+        };
+        if (viewer.loaded) applyFlat();
+        viewer.addEventListener('load', applyFlat);
+      });
+    }, 500);
+    return () => clearTimeout(timer);
+  }, [menu]);
+
   return (
     <div className="min-h-screen bg-zinc-50 text-zinc-900 pb-20 font-serif">
       {/* Header Premium (Fine Dining) */}
