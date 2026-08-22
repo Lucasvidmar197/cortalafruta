@@ -115,6 +115,7 @@ export default function Home() {
                         'auto-rotate': true,
                         'camera-controls': true,
                         'disable-zoom': true,
+                        'disable-pan': true,
                         ar: true,
                         'ar-modes': "webxr scene-viewer quick-look",
                         'ar-scale': "fixed",
