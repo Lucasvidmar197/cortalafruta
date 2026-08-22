@@ -25,5 +25,14 @@
     "glbUrl": "/uploads/1787363066675-KFC, zinger burger photogrammetry.glb",
     "usdzUrl": "",
     "id": "1787363066706"
+  },
+  {
+    "name": " ramen",
+    "description": "123",
+    "price": 123,
+    "scale": 1,
+    "glbUrl": "/uploads/1787369490158-Spicy Ramen.glb",
+    "usdzUrl": "",
+    "id": "1787369490272"
   }
 ]
