@@ -150,8 +150,8 @@ function MenuContent() {
           Experiencia Culinaria
         </p>
         {tableNumber ? (
-          <p className="mt-4 text-zinc-900 font-sans text-xs border border-zinc-200 bg-white px-4 py-1 rounded-full shadow-sm">
-            Mesa {tableNumber}
+          <p className="mt-4 text-zinc-900 font-sans text-xs border border-zinc-200 bg-white px-4 py-1 rounded-full shadow-sm capitalize">
+            {isNaN(Number(tableNumber)) ? tableNumber : `Mesa ${tableNumber}`}
           </p>
         ) : (
           <p className="mt-4 text-zinc-500 font-sans text-xs italic">
