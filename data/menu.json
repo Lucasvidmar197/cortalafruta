@@ -7,5 +7,14 @@
     "usdzUrl": "/uploads/1787192598454-Burger.usdz",
     "id": "1787192598479",
     "scale": 0.05
+  },
+  {
+    "name": "hamburguesa real",
+    "description": "1231asdd",
+    "price": 123,
+    "scale": 1,
+    "glbUrl": "/uploads/1787354683555-Cheeseburger photogrammetry tilted wig warwick .glb",
+    "usdzUrl": "",
+    "id": "1787354683617"
   }
 ]

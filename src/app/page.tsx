@@ -19,7 +19,12 @@ export default function Home() {
   const [activeCategory, setActiveCategory] = useState("Destacados");
 
   useEffect(() => {
-    fetch("/api/menu?t=" + Date.now(), { cache: "no-store" })
+    fetch("/api/menu?t=" + Date.now(), { 
+      cache: "no-store",
+      headers: {
+        "Bypass-Tunnel-Reminder": "true"
+      }
+    })
       .then((res) => {
         if (!res.ok) throw new Error(`Status: ${res.status}`);
         return res.json();
