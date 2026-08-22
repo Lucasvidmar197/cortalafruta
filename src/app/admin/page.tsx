@@ -19,6 +19,7 @@ export default function AdminPage() {
   const [billingTable, setBillingTable] = useState<any>(null);
   const [customChargeName, setCustomChargeName] = useState("");
   const [customChargePrice, setCustomChargePrice] = useState("");
+  const [paymentMethod, setPaymentMethod] = useState("Efectivo");
 
   // Realtime States
   const [orders, setOrders] = useState<any[]>([]);
@@ -310,22 +311,38 @@ export default function AdminPage() {
 
   const handleCheckout = async () => {
     if (!billingTable) return;
-    if (!confirm(`¿Cerrar la mesa ${billingTable.name} y marcar todo como Pagado?`)) return;
+    if (!confirm(`¿Cerrar la mesa ${billingTable.name} y registrar el pago con ${paymentMethod}?`)) return;
     setLoading(true);
     
-    // 1. Mark orders as Pagado
-    const tableOrders = orders.filter(o => o.table_number === billingTable.name && o.status !== 'Pagado');
-    for (const order of tableOrders) {
-      await supabase.from('orders').update({ status: 'Pagado' }).eq('id', order.id);
+    // 1. Filtrar órdenes activas
+    const tableOrders = orders.filter(o => o.table_number === billingTable.name && !o.status.startsWith('Pagado') && o.status !== 'Archivado');
+    
+    if (tableOrders.length > 0) {
+      // Consolidar todos los ítems de todas las rondas en una sola lista
+      const allItems = tableOrders.flatMap(o => o.items);
+      const totalAmount = tableOrders.reduce((sum, o) => sum + Number(o.total), 0);
+
+      // Crear el ticket consolidado final
+      await supabase.from('orders').insert({
+        table_number: billingTable.name,
+        items: allItems,
+        total: totalAmount,
+        status: `Pagado - ${paymentMethod}`
+      });
+
+      // Archivar las órdenes parciales antiguas para que no salgan en el historial ni afecten el total
+      for (const order of tableOrders) {
+        await supabase.from('orders').update({ status: 'Archivado' }).eq('id', order.id);
+      }
     }
     
-    // 2. Clear table requests
+    // 2. Limpiar llamados al mozo
     const tableRequests = requests.filter(r => r.table_number === billingTable.name && r.status !== 'Resuelto');
     for (const req of tableRequests) {
       await supabase.from('service_requests').update({ status: 'Resuelto' }).eq('id', req.id);
     }
     
-    // 3. Set table to Libre
+    // 3. Liberar mesa
     await supabase.from('tables').update({ status: 'Libre' }).eq('id', billingTable.id);
     
     setBillingTable(null);
@@ -355,7 +372,7 @@ export default function AdminPage() {
   }
 
   const pendingOrders = orders.filter(o => o.status === 'Pendiente');
-  const paidOrders = orders.filter(o => o.status === 'Pagado');
+  const paidOrders = orders.filter(o => o.status?.startsWith('Pagado'));
   const pendingRequests = requests.filter(r => r.status === 'Pendiente');
   const uniqueCategories = Array.from(new Set(menuItems.map(item => item.category || "Destacados")));
   
@@ -652,7 +669,7 @@ export default function AdminPage() {
 
             {/* Modal de Facturación (Ver Cuenta) */}
             {billingTable && (() => {
-              const tableOrders = orders.filter(o => o.table_number === billingTable.name && o.status !== 'Pagado');
+              const tableOrders = orders.filter(o => o.table_number === billingTable.name && !o.status.startsWith('Pagado') && o.status !== 'Archivado');
               const allItems = tableOrders.flatMap(o => o.items);
               const totalAmount = tableOrders.reduce((sum, o) => sum + Number(o.total), 0);
 
@@ -712,10 +729,31 @@ export default function AdminPage() {
                     </div>
 
                     <div className="p-6 border-t border-zinc-100 bg-zinc-50">
-                      <div className="flex justify-between items-center mb-6">
+                      <div className="flex justify-between items-center mb-4">
                         <span className="text-sm font-medium uppercase tracking-widest text-zinc-500">Total a Pagar</span>
                         <span className="text-2xl font-bold">${totalAmount.toFixed(2)}</span>
                       </div>
+                      
+                      <div className="mb-4">
+                        <label className="block text-xs font-medium tracking-widest uppercase text-zinc-500 mb-2">Método de Pago</label>
+                        <div className="flex gap-2">
+                          {["Efectivo", "Transferencia", "QR"].map(method => (
+                            <button 
+                              key={method}
+                              type="button"
+                              onClick={() => setPaymentMethod(method)}
+                              className={`flex-1 py-2 text-xs font-medium uppercase tracking-wider border transition-colors ${
+                                paymentMethod === method 
+                                  ? 'bg-zinc-900 text-white border-zinc-900' 
+                                  : 'bg-white text-zinc-600 border-zinc-200 hover:bg-zinc-50'
+                              }`}
+                            >
+                              {method}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+
                       <button 
                         onClick={handleCheckout} 
                         disabled={loading || totalAmount === 0}
@@ -883,11 +921,15 @@ export default function AdminPage() {
                 <p className="text-zinc-500 italic text-sm">No hay ventas registradas.</p>
               ) : (
                 <div className="space-y-4">
-                  {paidOrders.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()).map(order => (
+                  {paidOrders.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()).map(order => {
+                    const method = order.status.replace('Pagado - ', '');
+                    const isConsolidated = order.status.includes('-');
+                    return (
                     <div key={order.id} className="bg-white border border-zinc-200 p-6 shadow-sm flex flex-col md:flex-row md:justify-between md:items-center gap-4">
                       <div>
                         <div className="flex items-center gap-3 mb-2">
                           <span className="bg-green-100 text-green-800 text-[10px] px-2 py-1 tracking-widest uppercase font-medium">Pagado</span>
+                          {isConsolidated && <span className="bg-zinc-100 text-zinc-800 text-[10px] px-2 py-1 tracking-widest uppercase font-medium">{method}</span>}
                           <span className="text-sm font-medium">{order.table_number}</span>
                           <span className="text-xs text-zinc-400">{new Date(order.created_at).toLocaleString()}</span>
                         </div>
@@ -904,7 +946,7 @@ export default function AdminPage() {
                         <p className="text-xl font-medium">${Number(order.total).toFixed(2)}</p>
                       </div>
                     </div>
-                  ))}
+                  )})}
                 </div>
               )}
             </div>
