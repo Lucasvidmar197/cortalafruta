@@ -19,12 +19,13 @@ interface MenuItem {
 interface CartItem {
   item: MenuItem;
   quantity: number;
+  notes?: string;
 }
 
 function MenuContent() {
   const [menu, setMenu] = useState<MenuItem[]>([]);
   const [loading, setLoading] = useState(true);
-  const [activeCategory, setActiveCategory] = useState("Destacados");
+  const [activeCategory, setActiveCategory] = useState<string>("Destacados");
   const [tableNumber, setTableNumber] = useState<string | null>(null);
   
   // Shopping Cart & Order States
@@ -68,14 +69,14 @@ function MenuContent() {
         setLoading(false);
       })
       .catch((err) => {
-        console.error("Error cargando el menú:", err);
+        console.error(err);
         setLoading(false);
       });
   }, []);
 
   const showNotification = (msg: string) => {
     setNotificationMsg(msg);
-    setTimeout(() => setNotificationMsg(""), 4000);
+    setTimeout(() => setNotificationMsg(""), 3000);
   };
 
   const callWaiter = async () => {
@@ -106,7 +107,7 @@ function MenuContent() {
       if (existing) {
         return prev.map(c => c.item.id === item.id ? { ...c, quantity: c.quantity + 1 } : c);
       }
-      return [...prev, { item, quantity: 1 }];
+      return [...prev, { item, quantity: 1, notes: "" }];
     });
     showNotification(`Se añadió ${item.name}`);
   };
@@ -115,12 +116,16 @@ function MenuContent() {
     setCart((prev) => prev.filter(c => c.item.id !== itemId));
   };
 
+  const updateCartNote = (itemId: string, notes: string) => {
+    setCart((prev) => prev.map(c => c.item.id === itemId ? { ...c, notes } : c));
+  };
+
   const submitOrder = async () => {
     if (!tableNumber || cart.length === 0) return;
     setIsOrdering(true);
     
     const total = cart.reduce((sum, cartItem) => sum + (cartItem.item.price * cartItem.quantity), 0);
-    const itemsJson = cart.map(c => ({ id: c.item.id, name: c.item.name, quantity: c.quantity, price: c.item.price }));
+    const itemsJson = cart.map(c => ({ id: c.item.id, name: c.item.name, quantity: c.quantity, price: c.item.price, notes: c.notes }));
 
     const { error } = await supabase.from('orders').insert({
       table_number: tableNumber,
@@ -327,15 +332,24 @@ function MenuContent() {
               ) : (
                 <div className="space-y-6">
                   {cart.map((c, i) => (
-                    <div key={i} className="flex justify-between items-center">
-                      <div>
-                        <p className="font-sans text-sm text-zinc-900">{c.quantity}x {c.item.name}</p>
-                        <p className="font-sans text-xs text-zinc-400 mt-1">${c.item.price.toFixed(2)} c/u</p>
+                    <div key={i} className="flex flex-col gap-2 border-b border-zinc-100 pb-4 last:border-0 last:pb-0">
+                      <div className="flex justify-between items-start">
+                        <div>
+                          <p className="font-sans text-sm text-zinc-900">{c.quantity}x {c.item.name}</p>
+                          <p className="font-sans text-xs text-zinc-400 mt-1">${c.item.price.toFixed(2)} c/u</p>
+                        </div>
+                        <div className="flex items-center gap-4">
+                          <p className="font-sans text-sm font-medium">${(c.item.price * c.quantity).toFixed(2)}</p>
+                          <button onClick={() => removeFromCart(c.item.id)} className="text-red-500 text-xs uppercase font-sans tracking-wider hover:underline">Quitar</button>
+                        </div>
                       </div>
-                      <div className="flex items-center gap-4">
-                        <p className="font-sans text-sm font-medium">${(c.item.price * c.quantity).toFixed(2)}</p>
-                        <button onClick={() => removeFromCart(c.item.id)} className="text-red-500 text-xs uppercase font-sans tracking-wider hover:underline">Quitar</button>
-                      </div>
+                      <input 
+                        type="text" 
+                        value={c.notes || ""} 
+                        onChange={(e) => updateCartNote(c.item.id, e.target.value)}
+                        placeholder="Aclaraciones (ej: sin sal, extra queso)" 
+                        className="w-full text-xs font-sans p-2 border border-zinc-200 bg-zinc-50 outline-none focus:border-zinc-400 focus:bg-white transition-colors"
+                      />
                     </div>
                   ))}
                 </div>

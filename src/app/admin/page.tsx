@@ -390,8 +390,15 @@ export default function AdminPage() {
                         </div>
                         <div className="flex-grow space-y-3 mb-6">
                           {order.items.map((item: any, i: number) => (
-                            <div key={i} className="flex justify-between text-sm">
-                              <span><span className="font-medium mr-2">{item.quantity}x</span> {item.name}</span>
+                            <div key={i} className="flex flex-col text-sm border-b border-zinc-50 last:border-0 pb-2 mb-2 last:pb-0 last:mb-0">
+                              <div className="flex justify-between">
+                                <span><span className="font-medium mr-2">{item.quantity}x</span> {item.name}</span>
+                              </div>
+                              {item.notes && (
+                                <p className="text-xs text-red-600 mt-1 italic pl-6 flex items-start gap-1">
+                                  <span>⚠️</span> {item.notes}
+                                </p>
+                              )}
                             </div>
                           ))}
                         </div>
