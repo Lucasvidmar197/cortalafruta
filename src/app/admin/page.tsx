@@ -166,6 +166,7 @@ export default function AdminPage() {
     if (confirm("¿Estás seguro de que quieres borrar este plato? Esta acción no se puede deshacer.")) {
       await supabase.from('menu_items').delete().eq('id', id);
       alert("Plato borrado");
+      fetchData();
     }
   };
 
@@ -188,6 +189,7 @@ export default function AdminPage() {
 
       alert("Cambios guardados");
       setEditingMenuItem(null);
+      fetchData();
     } catch (err) {
       alert("Error al actualizar");
     } finally {
@@ -200,6 +202,7 @@ export default function AdminPage() {
     if (newName && newName.trim() !== "" && newName !== oldName) {
       await supabase.from('menu_items').update({ category: newName.trim() }).eq('category', oldName);
       alert("Categoría renombrada");
+      fetchData();
     }
   };
 
