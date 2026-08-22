@@ -73,7 +73,7 @@ function MenuContent() {
     if (!tableNumber) return;
     setIsCallingWaiter(true);
     const { error } = await supabase.from('service_requests').insert({
-      table_number: parseInt(tableNumber),
+      table_number: tableNumber,
       request_type: 'mozo'
     });
     setIsCallingWaiter(false);
@@ -84,7 +84,7 @@ function MenuContent() {
     if (!tableNumber) return;
     setIsAskingBill(true);
     const { error } = await supabase.from('service_requests').insert({
-      table_number: parseInt(tableNumber),
+      table_number: tableNumber,
       request_type: 'cuenta'
     });
     setIsAskingBill(false);
@@ -114,7 +114,7 @@ function MenuContent() {
     const itemsJson = cart.map(c => ({ id: c.item.id, name: c.item.name, quantity: c.quantity, price: c.item.price }));
 
     const { error } = await supabase.from('orders').insert({
-      table_number: parseInt(tableNumber),
+      table_number: tableNumber,
       items: itemsJson,
       total: total
     });
