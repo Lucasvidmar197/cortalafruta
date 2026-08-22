@@ -57,7 +57,7 @@ export default function AdminPage() {
           name,
           description,
           price: parseFloat(price),
-          scale: parseFloat(formData.get("scale") as string) || 1,
+          scale: 1,
           glbUrl: uploadedFiles.glb || "",
           usdzUrl: uploadedFiles.usdz || "",
         }),
@@ -149,21 +149,6 @@ export default function AdminPage() {
               className="w-full px-4 py-3 border border-slate-200 rounded-xl focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500 outline-none transition-all resize-none"
               placeholder="Describe los ingredientes principales..."
             ></textarea>
-          </div>
-
-          <div>
-            <label className="block text-sm font-bold text-slate-700 mb-2">Escala 3D en AR</label>
-            <div className="flex gap-4 items-center">
-              <input 
-                name="scale" 
-                type="number" 
-                step="0.01"
-                defaultValue="1"
-                required 
-                className="w-32 px-4 py-3 border border-slate-200 rounded-xl focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500 outline-none transition-all"
-              />
-              <span className="text-sm text-slate-500">Usa 0.1 para reducirlo al 10%, o 1 para tamaño original.</span>
-            </div>
           </div>
 
           <div className="mt-8 pt-8 border-t border-slate-100">

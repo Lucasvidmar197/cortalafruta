@@ -16,5 +16,14 @@
     "glbUrl": "/uploads/1787354683555-Cheeseburger photogrammetry tilted wig warwick .glb",
     "usdzUrl": "",
     "id": "1787354683617"
+  },
+  {
+    "name": "kfc",
+    "description": "1231",
+    "price": 123,
+    "scale": 1,
+    "glbUrl": "/uploads/1787363066675-KFC, zinger burger photogrammetry.glb",
+    "usdzUrl": "",
+    "id": "1787363066706"
   }
 ]
