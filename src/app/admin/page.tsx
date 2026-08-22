@@ -1,14 +1,59 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
+import { supabase } from "@/lib/supabase";
 
 export default function AdminPage() {
   const router = useRouter();
   const [loading, setLoading] = useState(false);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [password, setPassword] = useState("");
+  const [activeTab, setActiveTab] = useState<"cocina" | "menu">("cocina");
+
+  // Realtime States
+  const [orders, setOrders] = useState<any[]>([]);
+  const [requests, setRequests] = useState<any[]>([]);
+
+  useEffect(() => {
+    if (!isAuthenticated) return;
+
+    // Fetch initial data
+    const fetchData = async () => {
+      const { data: ordersData } = await supabase.from('orders').select('*').order('created_at', { ascending: false });
+      const { data: reqData } = await supabase.from('service_requests').select('*').order('created_at', { ascending: false });
+      if (ordersData) setOrders(ordersData);
+      if (reqData) setRequests(reqData);
+    };
+
+    fetchData();
+
+    // Subscribe to realtime channels
+    const channel = supabase
+      .channel('schema-db-changes')
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'orders' },
+        (payload) => {
+          console.log('Order Change received!', payload);
+          fetchData(); // Refresh list to keep simple
+        }
+      )
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'service_requests' },
+        (payload) => {
+          console.log('Request Change received!', payload);
+          fetchData();
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [isAuthenticated]);
 
   const handleLogin = (e: React.FormEvent) => {
     e.preventDefault();
@@ -19,7 +64,7 @@ export default function AdminPage() {
     }
   };
 
-  const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
+  const handleMenuSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     setLoading(true);
 
@@ -67,7 +112,6 @@ export default function AdminPage() {
 
       alert("Plato agregado exitosamente");
       (e.target as HTMLFormElement).reset();
-      router.push("/");
     } catch (error) {
       console.error(error);
       alert("Hubo un error al guardar el plato.");
@@ -76,119 +120,233 @@ export default function AdminPage() {
     }
   };
 
+  const updateOrderStatus = async (id: string, newStatus: string) => {
+    await supabase.from('orders').update({ status: newStatus }).eq('id', id);
+  };
+
+  const resolveRequest = async (id: string) => {
+    await supabase.from('service_requests').update({ status: 'Resuelto' }).eq('id', id);
+  };
+
   if (!isAuthenticated) {
     return (
-      <div className="min-h-screen bg-slate-50 flex items-center justify-center p-4">
-        <form onSubmit={handleLogin} className="bg-white p-8 rounded-3xl shadow-xl w-full max-w-sm text-center border border-slate-100">
-          <div className="w-16 h-16 bg-orange-100 rounded-full mx-auto flex items-center justify-center mb-6">
-            <span className="text-2xl">🔒</span>
-          </div>
-          <h2 className="text-2xl font-bold text-slate-900 mb-2">Panel de Control</h2>
-          <p className="text-slate-500 text-sm mb-6">Ingresa para administrar el menú</p>
+      <div className="min-h-screen bg-zinc-50 flex items-center justify-center p-4">
+        <form onSubmit={handleLogin} className="bg-white p-8 rounded-none w-full max-w-sm text-center border border-zinc-200">
+          <h2 className="text-2xl font-light tracking-widest uppercase text-zinc-900 mb-2">L'Atelier</h2>
+          <p className="text-zinc-500 text-xs tracking-widest uppercase mb-8">Administración</p>
           
           <input
             type="password"
             value={password}
             onChange={(e) => setPassword(e.target.value)}
             placeholder="Contraseña"
-            className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:border-orange-500 focus:ring-2 focus:ring-orange-200 transition-all mb-4 outline-none"
+            className="w-full px-4 py-3 border border-zinc-200 focus:border-zinc-500 transition-all mb-4 outline-none text-center tracking-widest text-sm"
           />
-          <button type="submit" className="w-full py-3 bg-slate-900 hover:bg-slate-800 text-white font-bold rounded-xl transition-all">
+          <button type="submit" className="w-full py-4 bg-zinc-900 hover:bg-zinc-800 text-white font-sans text-xs tracking-widest uppercase transition-all">
             Ingresar
           </button>
-          <p className="text-xs text-slate-400 mt-4">Demo password: admin123</p>
         </form>
       </div>
     );
   }
 
+  const pendingOrders = orders.filter(o => o.status === 'Pendiente');
+  const pastOrders = orders.filter(o => o.status !== 'Pendiente').slice(0, 5); // solo ultimas 5
+  const pendingRequests = requests.filter(r => r.status === 'Pendiente');
+
   return (
-    <div className="min-h-screen bg-slate-50 p-6 text-slate-800 font-sans">
-      <div className="max-w-3xl mx-auto bg-white rounded-[2rem] shadow-sm border border-slate-100 p-8">
-        <div className="flex justify-between items-center mb-8 border-b border-slate-100 pb-6">
+    <div className="min-h-screen bg-zinc-50 text-zinc-900 font-sans pb-20">
+      
+      {/* Header Admin */}
+      <header className="bg-zinc-900 text-white p-6 sticky top-0 z-50">
+        <div className="max-w-6xl mx-auto flex justify-between items-center">
           <div>
-            <h1 className="text-2xl font-black text-slate-900">Agregar Plato Nuevo</h1>
-            <p className="text-slate-500 text-sm mt-1">Completa los detalles para publicarlo en el menú AR.</p>
+            <h1 className="text-xl font-light tracking-[0.2em] uppercase">L'Atelier</h1>
+            <p className="text-zinc-400 text-[10px] tracking-widest uppercase mt-1">Terminal de Salón</p>
           </div>
-          <Link href="/" className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 text-sm font-bold rounded-full transition-colors">
-            Ver menú público
-          </Link>
+          <div className="flex gap-4">
+            <Link href="/" className="px-4 py-2 border border-zinc-700 hover:bg-zinc-800 text-xs tracking-widest uppercase transition-colors">
+              Ver Menú
+            </Link>
+          </div>
         </div>
-        
-        <form onSubmit={handleSubmit} className="space-y-6">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <div>
-              <label className="block text-sm font-bold text-slate-700 mb-2">Nombre del Plato</label>
-              <input 
-                name="name" 
-                type="text" 
-                required 
-                className="w-full px-4 py-3 border border-slate-200 rounded-xl focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500 outline-none transition-all"
-                placeholder="Ej. Hamburguesa Doble"
-              />
-            </div>
-            <div>
-              <label className="block text-sm font-bold text-slate-700 mb-2">Precio ($)</label>
-              <input 
-                name="price" 
-                type="number" 
-                step="0.01"
-                required 
-                className="w-full px-4 py-3 border border-slate-200 rounded-xl focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500 outline-none transition-all"
-                placeholder="12.99"
-              />
-            </div>
-          </div>
+      </header>
 
-          <div>
-            <label className="block text-sm font-bold text-slate-700 mb-2">Descripción</label>
-            <textarea 
-              name="description" 
-              required 
-              rows={3}
-              className="w-full px-4 py-3 border border-slate-200 rounded-xl focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500 outline-none transition-all resize-none"
-              placeholder="Describe los ingredientes principales..."
-            ></textarea>
-          </div>
-
-          <div className="mt-8 pt-8 border-t border-slate-100">
-            <h3 className="text-lg font-bold text-slate-900 mb-4">Archivos 3D (Opcional)</h3>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              <div className="p-5 bg-slate-50 rounded-2xl border border-slate-200 border-dashed">
-                <label className="block text-sm font-bold text-slate-700 mb-3">Formato Web/Android (.glb)</label>
-                <input 
-                  name="glb" 
-                  type="file" 
-                  accept=".glb"
-                  className="w-full text-sm text-slate-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-bold file:bg-orange-100 file:text-orange-600 hover:file:bg-orange-200 transition-all cursor-pointer"
-                />
-              </div>
-              
-              <div className="p-5 bg-slate-50 rounded-2xl border border-slate-200 border-dashed">
-                <label className="block text-sm font-bold text-slate-700 mb-3">Formato iOS (.usdz)</label>
-                <input 
-                  name="usdz" 
-                  type="file" 
-                  accept=".usdz"
-                  className="w-full text-sm text-slate-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-bold file:bg-blue-50 file:text-blue-600 hover:file:bg-blue-100 transition-all cursor-pointer"
-                />
-              </div>
-            </div>
-          </div>
-
+      {/* Tabs */}
+      <div className="bg-white border-b border-zinc-200 mb-8 sticky top-[88px] z-40">
+        <div className="max-w-6xl mx-auto flex">
           <button 
-            type="submit" 
-            disabled={loading}
-            className="w-full py-4 mt-8 bg-slate-900 hover:bg-slate-800 text-white font-bold rounded-xl transition-all shadow-lg shadow-slate-900/20 disabled:bg-slate-300 disabled:shadow-none"
+            onClick={() => setActiveTab("cocina")}
+            className={`px-8 py-4 text-xs tracking-widest uppercase transition-colors border-b-2 ${activeTab === 'cocina' ? 'border-zinc-900 text-zinc-900 font-medium' : 'border-transparent text-zinc-500 hover:text-zinc-700'}`}
           >
-            {loading ? (
-              <span className="flex items-center justify-center gap-2">
-                <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>
-                Guardando Plato...
+            Cocina y Salón
+            {(pendingOrders.length > 0 || pendingRequests.length > 0) && (
+              <span className="ml-2 bg-red-600 text-white px-2 py-0.5 rounded-full text-[10px]">
+                {pendingOrders.length + pendingRequests.length}
               </span>
-            ) : "Publicar Plato en el Menú"}
+            )}
           </button>
-        </form>
+          <button 
+            onClick={() => setActiveTab("menu")}
+            className={`px-8 py-4 text-xs tracking-widest uppercase transition-colors border-b-2 ${activeTab === 'menu' ? 'border-zinc-900 text-zinc-900 font-medium' : 'border-transparent text-zinc-500 hover:text-zinc-700'}`}
+          >
+            Gestión de Platos
+          </button>
+        </div>
+      </div>
+
+      <div className="max-w-6xl mx-auto px-6">
+        {activeTab === "cocina" && (
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+            
+            {/* ALERTAS DE SALON */}
+            <div className="lg:col-span-1 space-y-4">
+              <h2 className="text-sm tracking-widest uppercase font-medium border-b border-zinc-200 pb-2 mb-4">Alertas de Mesas</h2>
+              
+              {pendingRequests.length === 0 ? (
+                <p className="text-zinc-400 text-sm italic">No hay llamados pendientes.</p>
+              ) : (
+                pendingRequests.map(req => (
+                  <div key={req.id} className={`p-5 border-l-4 bg-white shadow-sm flex justify-between items-center ${req.request_type === 'cuenta' ? 'border-green-500' : 'border-red-500'}`}>
+                    <div>
+                      <p className="text-2xl font-light">Mesa {req.table_number}</p>
+                      <p className="text-sm font-medium uppercase tracking-wider mt-1">
+                        {req.request_type === 'cuenta' ? '🧾 Pide la cuenta' : '🛎️ Llama al mozo'}
+                      </p>
+                      <p className="text-xs text-zinc-400 mt-2">{new Date(req.created_at).toLocaleTimeString()}</p>
+                    </div>
+                    <button 
+                      onClick={() => resolveRequest(req.id)}
+                      className="w-12 h-12 rounded-full bg-zinc-100 hover:bg-zinc-200 flex items-center justify-center transition-colors"
+                      title="Marcar como resuelto"
+                    >
+                      ✓
+                    </button>
+                  </div>
+                ))
+              )}
+            </div>
+
+            {/* PEDIDOS DE COCINA */}
+            <div className="lg:col-span-2 space-y-8">
+              <div>
+                <h2 className="text-sm tracking-widest uppercase font-medium border-b border-zinc-200 pb-2 mb-4">Pedidos Nuevos (Cocina)</h2>
+                {pendingOrders.length === 0 ? (
+                  <p className="text-zinc-400 text-sm italic">No hay pedidos pendientes.</p>
+                ) : (
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    {pendingOrders.map(order => (
+                      <div key={order.id} className="bg-white border border-zinc-200 p-5 shadow-sm flex flex-col">
+                        <div className="flex justify-between items-start mb-4 border-b border-zinc-100 pb-4">
+                          <div>
+                            <span className="bg-zinc-900 text-white text-xs px-2 py-1 tracking-widest uppercase">Mesa {order.table_number}</span>
+                            <p className="text-xs text-zinc-400 mt-2">{new Date(order.created_at).toLocaleTimeString()}</p>
+                          </div>
+                          <div className="text-right">
+                            <p className="text-xs text-zinc-500 tracking-widest uppercase">Total</p>
+                            <p className="text-lg font-medium">${order.total}</p>
+                          </div>
+                        </div>
+                        
+                        <div className="flex-grow space-y-3 mb-6">
+                          {order.items.map((item: any, i: number) => (
+                            <div key={i} className="flex justify-between text-sm">
+                              <span><span className="font-medium mr-2">{item.quantity}x</span> {item.name}</span>
+                            </div>
+                          ))}
+                        </div>
+
+                        <button 
+                          onClick={() => updateOrderStatus(order.id, 'Entregado')}
+                          className="w-full py-3 bg-zinc-900 hover:bg-zinc-800 text-white text-xs tracking-widest uppercase transition-colors"
+                        >
+                          Marcar como Servido
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              {/* HISTORIAL BREVE */}
+              <div className="opacity-70">
+                <h2 className="text-sm tracking-widest uppercase font-medium border-b border-zinc-200 pb-2 mb-4">Últimos Entregados</h2>
+                <div className="space-y-2">
+                  {pastOrders.map(order => (
+                    <div key={order.id} className="bg-zinc-100 p-3 flex justify-between items-center text-sm">
+                      <span className="font-medium">Mesa {order.table_number}</span>
+                      <span className="text-zinc-500">{order.items.length} platos</span>
+                      <span className="text-xs px-2 py-1 bg-green-200 text-green-900 rounded">{order.status}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+            </div>
+          </div>
+        )}
+
+        {activeTab === "menu" && (
+          <div className="bg-white p-8 border border-zinc-200 max-w-2xl mx-auto shadow-sm">
+            <h2 className="text-lg font-light tracking-widest uppercase border-b border-zinc-200 pb-4 mb-8">Agregar Plato al Menú</h2>
+            <form onSubmit={handleMenuSubmit} className="space-y-6">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div>
+                  <label className="block text-xs font-medium tracking-widest uppercase text-zinc-500 mb-2">Nombre del Plato</label>
+                  <input 
+                    name="name" 
+                    type="text" 
+                    required 
+                    className="w-full px-4 py-3 border border-zinc-200 focus:border-zinc-900 outline-none transition-colors"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-medium tracking-widest uppercase text-zinc-500 mb-2">Precio ($)</label>
+                  <input 
+                    name="price" 
+                    type="number" 
+                    step="0.01"
+                    required 
+                    className="w-full px-4 py-3 border border-zinc-200 focus:border-zinc-900 outline-none transition-colors"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-xs font-medium tracking-widest uppercase text-zinc-500 mb-2">Descripción</label>
+                <textarea 
+                  name="description" 
+                  required 
+                  rows={3}
+                  className="w-full px-4 py-3 border border-zinc-200 focus:border-zinc-900 outline-none transition-colors resize-none"
+                ></textarea>
+              </div>
+
+              <div className="mt-8 pt-8 border-t border-zinc-100">
+                <h3 className="text-xs font-medium tracking-widest uppercase text-zinc-900 mb-4">Archivos 3D (Subida Local)</h3>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  <div className="p-4 bg-zinc-50 border border-zinc-200 border-dashed">
+                    <label className="block text-xs font-medium text-zinc-700 mb-2">.glb (Android/Web)</label>
+                    <input name="glb" type="file" accept=".glb" className="w-full text-xs text-zinc-500" />
+                  </div>
+                  <div className="p-4 bg-zinc-50 border border-zinc-200 border-dashed">
+                    <label className="block text-xs font-medium text-zinc-700 mb-2">.usdz (iOS)</label>
+                    <input name="usdz" type="file" accept=".usdz" className="w-full text-xs text-zinc-500" />
+                  </div>
+                </div>
+                <p className="text-xs text-red-500 mt-2">*Nota: En Vercel, los archivos locales se borrarán tras cada despliegue. Para producción real debes usar Supabase Storage.</p>
+              </div>
+
+              <button 
+                type="submit" 
+                disabled={loading}
+                className="w-full py-4 mt-8 bg-zinc-900 hover:bg-zinc-800 text-white text-xs tracking-widest uppercase transition-all disabled:opacity-50 flex justify-center h-[52px]"
+              >
+                {loading ? <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin"></div> : "Publicar Plato"}
+              </button>
+            </form>
+          </div>
+        )}
       </div>
     </div>
   );
