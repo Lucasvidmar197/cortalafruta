@@ -109,8 +109,8 @@ export default function Home() {
                     {item.glbUrl ? (
                       React.createElement('model-viewer', {
                         id: `viewer-${item.id}`,
-                        src: item.glbUrl,
-                        'ios-src': item.usdzUrl || undefined,
+                        src: encodeURI(item.glbUrl),
+                        'ios-src': item.usdzUrl ? encodeURI(item.usdzUrl) : undefined,
                         alt: `Modelo 3D de ${item.name}`,
                         ar: true,
                         'ar-modes': "scene-viewer webxr quick-look",
