@@ -124,10 +124,9 @@ export default function Home() {
                         'min-camera-orbit': "auto 60deg auto",
                         'max-camera-orbit': "auto 90deg auto",
                         'tone-mapping': "neutral",
-                        'exposure': "1.6",
+                        'exposure': "1",
                         'shadow-intensity': "0.3",
                         'shadow-softness': "1",
-                        'environment-image': "neutral",
                         style: { width: "100%", height: "100%" },
                         class: "w-full h-full object-contain"
                       })
