@@ -1,48 +1,53 @@
 export const dynamic = 'force-dynamic';
 import { NextResponse } from 'next/server';
-import fs from 'fs/promises';
-import path from 'path';
-
-const dataFilePath = path.join(process.cwd(), 'data', 'menu.json');
-
-async function ensureDataFile() {
-  const dirPath = path.dirname(dataFilePath);
-  try {
-    await fs.access(dirPath);
-  } catch {
-    await fs.mkdir(dirPath, { recursive: true });
-  }
-  
-  try {
-    await fs.access(dataFilePath);
-  } catch {
-    await fs.writeFile(dataFilePath, '[]', 'utf-8');
-  }
-}
+import { supabase } from '@/lib/supabase';
 
 export async function GET() {
   try {
-    await ensureDataFile();
-    const data = await fs.readFile(dataFilePath, 'utf-8');
-    return NextResponse.json(JSON.parse(data));
+    const { data, error } = await supabase.from('menu_items').select('*').order('created_at', { ascending: true });
+    
+    if (error) throw error;
+    
+    // Mapear los nombres de columnas de postgres (minúsculas) a la interfaz del frontend
+    const formattedData = data.map(item => ({
+      ...item,
+      glbUrl: item.glburl,
+      usdzUrl: item.usdzurl,
+    }));
+
+    return NextResponse.json(formattedData);
   } catch (error) {
+    console.error('API Error:', error);
     return NextResponse.json({ error: 'Error reading menu data' }, { status: 500 });
   }
 }
 
 export async function POST(request: Request) {
   try {
-    await ensureDataFile();
     const newItem = await request.json();
-    const data = await fs.readFile(dataFilePath, 'utf-8');
-    const menu = JSON.parse(data);
     
-    newItem.id = Date.now().toString();
-    menu.push(newItem);
+    const id = Date.now().toString();
+    const { data, error } = await supabase.from('menu_items').insert({
+      id: id,
+      name: newItem.name,
+      description: newItem.description || '',
+      price: newItem.price || 0,
+      scale: newItem.scale || 1,
+      glburl: newItem.glbUrl,
+      usdzurl: newItem.usdzUrl
+    }).select().single();
     
-    await fs.writeFile(dataFilePath, JSON.stringify(menu, null, 2), 'utf-8');
-    return NextResponse.json(newItem, { status: 201 });
+    if (error) throw error;
+
+    const formattedData = {
+      ...data,
+      glbUrl: data.glburl,
+      usdzUrl: data.usdzurl,
+    };
+    
+    return NextResponse.json(formattedData, { status: 201 });
   } catch (error) {
+    console.error('API Error:', error);
     return NextResponse.json({ error: 'Error saving menu data' }, { status: 500 });
   }
 }
