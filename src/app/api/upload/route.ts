@@ -37,6 +37,9 @@ export async function POST(request: Request) {
     };
 
     if (glbFile && glbFile.size > 0) {
+      if (glbFile.size > 50 * 1024 * 1024) return NextResponse.json({ error: 'File too large (Max 50MB)' }, { status: 413 });
+      if (!glbFile.name.toLowerCase().endsWith('.glb')) return NextResponse.json({ error: 'Invalid format. Only .glb allowed for 3D models.' }, { status: 400 });
+      
       try {
         // Inyectar Unlit para desactivar el "sol virtual" en AR
         const io = new NodeIO().registerExtensions([KHRMaterialsUnlit]);

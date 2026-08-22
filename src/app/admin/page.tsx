@@ -11,6 +11,8 @@ export default function AdminPage() {
   const [loading, setLoading] = useState(false);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [password, setPassword] = useState("");
+  const [email, setEmail] = useState("");
+  const [authError, setAuthError] = useState("");
   const [activeTab, setActiveTab] = useState<"cocina" | "menu" | "salon">("cocina");
 
   // Realtime States
@@ -41,6 +43,14 @@ export default function AdminPage() {
   };
 
   useEffect(() => {
+    const checkSession = async () => {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (session) setIsAuthenticated(true);
+    };
+    checkSession();
+  }, []);
+
+  useEffect(() => {
     if (!isAuthenticated) return;
     fetchData();
 
@@ -64,10 +74,27 @@ export default function AdminPage() {
     };
   }, [isAuthenticated]);
 
-  const handleLogin = (e: React.FormEvent) => {
+  const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (password === "admin123") setIsAuthenticated(true);
-    else alert("Contraseña incorrecta. (Usa: admin123)");
+    setLoading(true);
+    setAuthError("");
+    
+    const { data, error } = await supabase.auth.signInWithPassword({
+      email,
+      password,
+    });
+    
+    setLoading(false);
+    if (error) {
+      setAuthError("Correo o contraseña incorrectos");
+    } else {
+      setIsAuthenticated(true);
+    }
+  };
+
+  const handleLogout = async () => {
+    await supabase.auth.signOut();
+    setIsAuthenticated(false);
   };
 
   // =========================================================================
@@ -261,8 +288,12 @@ export default function AdminPage() {
         <form onSubmit={handleLogin} className="bg-white p-8 rounded-none w-full max-w-sm text-center border border-zinc-200">
           <h2 className="text-2xl font-light tracking-widest uppercase text-zinc-900 mb-2">L'Atelier</h2>
           <p className="text-zinc-500 text-xs tracking-widest uppercase mb-8">Administración</p>
-          <input type="password" value={password} onChange={(e) => setPassword(e.target.value)} placeholder="Contraseña" className="w-full px-4 py-3 border border-zinc-200 focus:border-zinc-500 transition-all mb-4 outline-none text-center tracking-widest text-sm" />
-          <button type="submit" className="w-full py-4 bg-zinc-900 hover:bg-zinc-800 text-white font-sans text-xs tracking-widest uppercase transition-all">Ingresar</button>
+          {authError && <p className="text-red-500 text-xs mb-4">{authError}</p>}
+          <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="Correo electrónico" required className="w-full px-4 py-3 border border-zinc-200 focus:border-zinc-500 transition-all mb-4 outline-none text-center tracking-widest text-sm" />
+          <input type="password" value={password} onChange={(e) => setPassword(e.target.value)} placeholder="Contraseña" required className="w-full px-4 py-3 border border-zinc-200 focus:border-zinc-500 transition-all mb-4 outline-none text-center tracking-widest text-sm" />
+          <button type="submit" disabled={loading} className="w-full py-4 bg-zinc-900 hover:bg-zinc-800 text-white font-sans text-xs tracking-widest uppercase transition-all disabled:opacity-50">
+            {loading ? "Autenticando..." : "Ingresar"}
+          </button>
         </form>
       </div>
     );
@@ -285,9 +316,10 @@ export default function AdminPage() {
             <h1 className="text-xl font-light tracking-[0.2em] uppercase">L'Atelier</h1>
             <p className="text-zinc-400 text-[10px] tracking-widest uppercase mt-1">Terminal de Administración</p>
           </div>
-          <Link href="/" className="px-4 py-2 border border-zinc-700 hover:bg-zinc-800 text-xs tracking-widest uppercase transition-colors">
-            Ver Menú
-          </Link>
+          <div className="flex gap-4">
+            <Link href="/" className="px-4 py-2 border border-zinc-700 hover:bg-zinc-800 text-xs tracking-widest uppercase transition-colors">Ver Menú</Link>
+            <button onClick={handleLogout} className="px-4 py-2 border border-red-900/30 text-red-400 hover:bg-red-900/20 text-xs tracking-widest uppercase transition-colors">Salir</button>
+          </div>
         </div>
       </header>
 
