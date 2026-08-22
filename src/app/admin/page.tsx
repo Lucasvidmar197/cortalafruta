@@ -44,6 +44,7 @@ export default function AdminPage() {
     if (!isAuthenticated) return;
     fetchData();
 
+    // Intentamos usar Realtime
     const channel = supabase
       .channel('schema-db-changes')
       .on('postgres_changes', { event: '*', schema: 'public', table: 'orders' }, () => fetchData())
@@ -52,8 +53,14 @@ export default function AdminPage() {
       .on('postgres_changes', { event: '*', schema: 'public', table: 'tables' }, () => fetchData())
       .subscribe();
 
+    // PLAN B: Recargar automáticamente cada 3 segundos por si Realtime no está activado en Supabase
+    const intervalId = setInterval(() => {
+      fetchData();
+    }, 3000);
+
     return () => {
       supabase.removeChannel(channel);
+      clearInterval(intervalId);
     };
   }, [isAuthenticated]);
 
@@ -69,10 +76,12 @@ export default function AdminPage() {
 
   const updateOrderStatus = async (id: string, newStatus: string) => {
     await supabase.from('orders').update({ status: newStatus }).eq('id', id);
+    fetchData(); // Recarga instantánea
   };
 
   const resolveRequest = async (id: string) => {
     await supabase.from('service_requests').update({ status: 'Resuelto' }).eq('id', id);
+    fetchData(); // Recarga instantánea
   };
 
   const handleEditQuantity = (itemId: string, delta: number) => {
