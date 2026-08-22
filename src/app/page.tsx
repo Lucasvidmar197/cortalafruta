@@ -121,7 +121,10 @@ export default function Home() {
                         'ar-placement': "floor",
                         'min-camera-orbit': "auto 60deg auto",
                         'max-camera-orbit': "auto 90deg auto",
-                        'shadow-intensity': "1.5",
+                        'tone-mapping': "neutral",
+                        'exposure': "1.2",
+                        'shadow-intensity': "0.8",
+                        'shadow-softness': "1",
                         'environment-image': "neutral",
                         style: { width: "100%", height: "100%", transform: `scale(${item.scale || 1})` },
                         class: "w-full h-full object-contain cursor-grab active:cursor-grabbing"
