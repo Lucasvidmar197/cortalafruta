@@ -72,18 +72,23 @@ export default function AdminPage() {
     const name = formData.get("name") as string;
     const description = formData.get("description") as string;
     const price = formData.get("price") as string;
+    const category = formData.get("category") as string;
     
     const uploadData = new FormData();
     const glb = formData.get("glb") as File;
     const usdz = formData.get("usdz") as File;
+    const imageFiles = formData.getAll("images") as File[];
     
     if (glb && glb.size > 0) uploadData.append("glb", glb);
     if (usdz && usdz.size > 0) uploadData.append("usdz", usdz);
+    for (const img of imageFiles) {
+      if (img.size > 0) uploadData.append("images", img);
+    }
 
     try {
-      let uploadedFiles: { glb?: string; usdz?: string } = {};
+      let uploadedFiles: { glb?: string; usdz?: string; images?: string[] } = {};
 
-      if ((glb && glb.size > 0) || (usdz && usdz.size > 0)) {
+      if ((glb && glb.size > 0) || (usdz && usdz.size > 0) || imageFiles.some(f => f.size > 0)) {
         const uploadRes = await fetch("/api/upload", {
           method: "POST",
           body: uploadData,
@@ -102,9 +107,11 @@ export default function AdminPage() {
           name,
           description,
           price: parseFloat(price),
+          category: category || "Destacados",
           scale: 1,
           glbUrl: uploadedFiles.glb || "",
           usdzUrl: uploadedFiles.usdz || "",
+          imageUrls: uploadedFiles.images || [],
         }),
       });
 
@@ -313,6 +320,21 @@ export default function AdminPage() {
               </div>
 
               <div>
+                <label className="block text-xs font-medium tracking-widest uppercase text-zinc-500 mb-2">Categoría</label>
+                <select 
+                  name="category"
+                  required
+                  className="w-full px-4 py-3 border border-zinc-200 focus:border-zinc-900 outline-none transition-colors bg-white"
+                >
+                  <option value="Destacados">Destacados</option>
+                  <option value="Entradas">Entradas</option>
+                  <option value="Principales">Principales</option>
+                  <option value="Postres">Postres</option>
+                  <option value="Bebidas">Bebidas</option>
+                </select>
+              </div>
+
+              <div>
                 <label className="block text-xs font-medium tracking-widest uppercase text-zinc-500 mb-2">Descripción</label>
                 <textarea 
                   name="description" 
@@ -323,7 +345,13 @@ export default function AdminPage() {
               </div>
 
               <div className="mt-8 pt-8 border-t border-zinc-100">
-                <h3 className="text-xs font-medium tracking-widest uppercase text-zinc-900 mb-4">Archivos 3D (Subida Local)</h3>
+                <h3 className="text-xs font-medium tracking-widest uppercase text-zinc-900 mb-4">Fotos y Modelos 3D (Subida Local)</h3>
+                
+                <div className="mb-6 p-4 bg-zinc-50 border border-zinc-200 border-dashed">
+                  <label className="block text-xs font-medium text-zinc-700 mb-2">Fotos Normales (Puedes seleccionar varias)</label>
+                  <input name="images" type="file" accept="image/*" multiple className="w-full text-xs text-zinc-500" />
+                </div>
+
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                   <div className="p-4 bg-zinc-50 border border-zinc-200 border-dashed">
                     <label className="block text-xs font-medium text-zinc-700 mb-2">.glb (Android/Web)</label>

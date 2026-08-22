@@ -9,8 +9,10 @@ interface MenuItem {
   name: string;
   description: string;
   price: number;
+  category?: string;
   glbUrl: string;
   usdzUrl: string;
+  imageUrls?: string[];
   scale?: number;
 }
 
@@ -183,13 +185,13 @@ function MenuContent() {
             <div className="flex justify-center py-20">
               <div className="w-6 h-6 border border-zinc-900 border-t-transparent rounded-full animate-spin"></div>
             </div>
-          ) : menu.length === 0 ? (
+          ) : menu.filter(item => (item.category || "Destacados") === activeCategory).length === 0 ? (
             <div className="text-center py-20">
-              <p className="text-slate-500 mt-1">El restaurante aún no ha subido platos.</p>
+              <p className="text-slate-500 mt-1">No hay platos en esta categoría.</p>
             </div>
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6 md:gap-10">
-              {menu.map((item) => (
+              {menu.filter(item => (item.category || "Destacados") === activeCategory).map((item) => (
                 <div key={item.id} className="bg-white group flex flex-col shadow-sm">
                   
                   {/* Visor 3D / Imagen */}
@@ -218,6 +220,8 @@ function MenuContent() {
                         style: { width: "100%", height: "100%", backgroundColor: "transparent" },
                         class: "w-full h-full object-contain"
                       })
+                    ) : item.imageUrls && item.imageUrls.length > 0 ? (
+                      <img src={item.imageUrls[0]} alt={item.name} className="w-full h-full object-cover" />
                     ) : (
                       <div className="text-zinc-400 font-light tracking-widest text-xs uppercase">Sin imagen</div>
                     )}

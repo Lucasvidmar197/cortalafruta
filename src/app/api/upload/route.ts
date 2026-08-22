@@ -7,8 +7,9 @@ export async function POST(request: Request) {
     const formData = await request.formData();
     const glbFile = formData.get('glb') as File | null;
     const usdzFile = formData.get('usdz') as File | null;
+    const imageFiles = formData.getAll('images') as File[];
 
-    if (!glbFile && !usdzFile) {
+    if (!glbFile && !usdzFile && imageFiles.length === 0) {
       return NextResponse.json({ error: 'No files uploaded' }, { status: 400 });
     }
 
@@ -20,7 +21,7 @@ export async function POST(request: Request) {
       await fs.mkdir(uploadDir, { recursive: true });
     }
 
-    const resultPaths: Record<string, string> = {};
+    const resultPaths: { glb?: string; usdz?: string; images?: string[] } = { images: [] };
 
     if (glbFile && glbFile.size > 0) {
       const buffer = Buffer.from(await glbFile.arrayBuffer());
@@ -36,6 +37,16 @@ export async function POST(request: Request) {
       const filePath = path.join(uploadDir, fileName);
       await fs.writeFile(filePath, buffer);
       resultPaths.usdz = `/uploads/${fileName}`;
+    }
+
+    for (const img of imageFiles) {
+      if (img.size > 0) {
+        const buffer = Buffer.from(await img.arrayBuffer());
+        const fileName = `${Date.now()}-${img.name.replace(/\\s+/g, '_')}`;
+        const filePath = path.join(uploadDir, fileName);
+        await fs.writeFile(filePath, buffer);
+        resultPaths.images!.push(`/uploads/${fileName}`);
+      }
     }
 
     return NextResponse.json(resultPaths, { status: 200 });

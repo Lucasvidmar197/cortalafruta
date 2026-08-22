@@ -8,11 +8,12 @@ export async function GET() {
     
     if (error) throw error;
     
-    // Mapear los nombres de columnas de postgres (minúsculas) a la interfaz del frontend
+    // Mapear los nombres de columnas de postgres a la interfaz del frontend
     const formattedData = data.map(item => ({
       ...item,
       glbUrl: item.glburl,
       usdzUrl: item.usdzurl,
+      imageUrls: item.image_urls || [],
     }));
 
     return NextResponse.json(formattedData);
@@ -34,7 +35,9 @@ export async function POST(request: Request) {
       price: newItem.price || 0,
       scale: newItem.scale || 1,
       glburl: newItem.glbUrl,
-      usdzurl: newItem.usdzUrl
+      usdzurl: newItem.usdzUrl,
+      category: newItem.category || 'Destacados',
+      image_urls: newItem.imageUrls || []
     }).select().single();
     
     if (error) throw error;
@@ -43,6 +46,7 @@ export async function POST(request: Request) {
       ...data,
       glbUrl: data.glburl,
       usdzUrl: data.usdzurl,
+      imageUrls: data.image_urls || []
     };
     
     return NextResponse.json(formattedData, { status: 201 });
