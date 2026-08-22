@@ -239,8 +239,7 @@ export default function AdminPage() {
     }
   };
 
-  const toggleTableStatus = async (id: string, currentStatus: string) => {
-    const newStatus = currentStatus === 'Libre' ? 'Ocupada' : 'Libre';
+  const updateTableStatus = async (id: string, newStatus: string) => {
     await supabase.from('tables').update({ status: newStatus }).eq('id', id);
     fetchData();
   };
@@ -454,18 +453,29 @@ export default function AdminPage() {
 
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   {filteredTables.map(table => (
-                    <div key={table.id} className={`bg-white border-l-4 p-5 shadow-sm ${table.status === 'Libre' ? 'border-green-500' : 'border-red-500'}`}>
+                    <div key={table.id} className={`bg-white border-l-4 p-5 shadow-sm ${
+                      table.status === 'Libre' ? 'border-green-500' : 
+                      table.status === 'Ocupada' ? 'border-red-500' : 
+                      'border-yellow-500'
+                    }`}>
                       <div className="flex justify-between items-start mb-4">
                         <div>
                           <h3 className="text-xl font-light">{table.name}</h3>
                           <p className="text-xs text-zinc-500 tracking-widest uppercase mt-1">Capacidad: {table.capacity}</p>
                         </div>
-                        <button 
-                          onClick={() => toggleTableStatus(table.id, table.status)}
-                          className={`px-3 py-1 text-xs tracking-widest uppercase font-medium rounded-full transition-colors ${table.status === 'Libre' ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}
+                        <select 
+                          value={table.status}
+                          onChange={(e) => updateTableStatus(table.id, e.target.value)}
+                          className={`px-3 py-1 text-xs tracking-widest uppercase font-medium rounded-full transition-colors outline-none cursor-pointer appearance-none text-center ${
+                            table.status === 'Libre' ? 'bg-green-100 text-green-700' : 
+                            table.status === 'Ocupada' ? 'bg-red-100 text-red-700' : 
+                            'bg-yellow-100 text-yellow-700'
+                          }`}
                         >
-                          {table.status}
-                        </button>
+                          <option value="Libre">Libre</option>
+                          <option value="Ocupada">Ocupada</option>
+                          <option value="Reservada">Reservada</option>
+                        </select>
                       </div>
 
                       <div className="flex gap-2 mt-4 pt-4 border-t border-zinc-100">
