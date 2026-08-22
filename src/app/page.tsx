@@ -159,8 +159,8 @@ function MenuContent() {
       </header>
 
       {/* Categorías */}
-      <nav className="mb-16 px-6 overflow-x-auto no-scrollbar">
-        <div className="flex justify-center gap-10 min-w-max">
+      <nav className="mb-10 md:mb-16 px-6 overflow-x-auto no-scrollbar">
+        <div className="flex justify-start md:justify-center gap-8 md:gap-10 min-w-max">
           {["Destacados", "Entradas", "Principales", "Postres"].map((cat) => (
             <button
               key={cat}
@@ -188,7 +188,7 @@ function MenuContent() {
               <p className="text-slate-500 mt-1">El restaurante aún no ha subido platos.</p>
             </div>
           ) : (
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-10">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6 md:gap-10">
               {menu.map((item) => (
                 <div key={item.id} className="bg-white group flex flex-col shadow-sm">
                   
@@ -266,27 +266,27 @@ function MenuContent() {
 
       {/* Footer Floating Actions for Table */}
       {tableNumber && (
-        <div className="fixed bottom-0 left-0 w-full bg-white border-t border-zinc-200 px-4 py-4 z-40 flex justify-between items-center shadow-[0_-10px_40px_rgba(0,0,0,0.05)]">
+        <div className="fixed bottom-0 left-0 w-full bg-white border-t border-zinc-200 p-3 md:px-4 md:py-4 z-40 flex justify-between items-center shadow-[0_-10px_40px_rgba(0,0,0,0.05)]">
           <div className="flex gap-2">
             <button 
               onClick={callWaiter}
               disabled={isCallingWaiter}
-              className="px-4 py-3 bg-zinc-100 text-zinc-900 font-sans text-xs tracking-widest uppercase flex items-center gap-2 active:bg-zinc-200 transition-colors disabled:opacity-50"
+              className="px-3 py-3 md:px-4 bg-zinc-100 text-zinc-900 font-sans text-[10px] md:text-xs tracking-widest uppercase flex items-center gap-1.5 active:bg-zinc-200 transition-colors disabled:opacity-50 whitespace-nowrap"
             >
-              🛎️ Mozo
+              🛎️ <span className="hidden sm:inline">Mozo</span>
             </button>
             <button 
               onClick={askForBill}
               disabled={isAskingBill}
-              className="px-4 py-3 bg-zinc-100 text-zinc-900 font-sans text-xs tracking-widest uppercase flex items-center gap-2 active:bg-zinc-200 transition-colors disabled:opacity-50"
+              className="px-3 py-3 md:px-4 bg-zinc-100 text-zinc-900 font-sans text-[10px] md:text-xs tracking-widest uppercase flex items-center gap-1.5 active:bg-zinc-200 transition-colors disabled:opacity-50 whitespace-nowrap"
             >
-              🧾 Cuenta
+              🧾 <span className="hidden sm:inline">Cuenta</span>
             </button>
           </div>
           
           <button 
             onClick={() => setIsCartOpen(true)}
-            className="relative px-6 py-3 bg-zinc-900 text-white font-sans text-xs tracking-widest uppercase flex items-center gap-2 active:bg-zinc-800 transition-colors"
+            className="relative px-4 md:px-6 py-3 bg-zinc-900 text-white font-sans text-[10px] md:text-xs tracking-widest uppercase flex items-center gap-2 active:bg-zinc-800 transition-colors whitespace-nowrap"
           >
             Pedido
             {cartItemsCount > 0 && (
