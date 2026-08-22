@@ -116,8 +116,9 @@ export default function Home() {
                         'camera-controls': true,
                         'disable-zoom': true,
                         'disable-pan': true,
+                        'interaction-prompt': "none",
                         ar: true,
-                        'ar-modes': "scene-viewer quick-look webxr",
+                        'ar-modes': "webxr quick-look scene-viewer",
                         'ar-placement': "floor",
                         'ar-scale': "fixed",
                         'min-camera-orbit': "auto 60deg auto",
@@ -127,8 +128,8 @@ export default function Home() {
                         'shadow-intensity': "0.8",
                         'shadow-softness': "1",
                         'environment-image': "neutral",
-                        style: { width: "100%", height: "100%", transform: `scale(${item.scale || 1})` },
-                        class: "w-full h-full object-contain cursor-grab active:cursor-grabbing"
+                        style: { width: "100%", height: "100%" },
+                        class: "w-full h-full object-contain"
                       })
                     ) : (
                       <div className="text-zinc-400 font-light tracking-widest text-xs uppercase">Sin imagen</div>
