@@ -15,6 +15,10 @@ export default function AdminPage() {
   // Realtime States
   const [orders, setOrders] = useState<any[]>([]);
   const [requests, setRequests] = useState<any[]>([]);
+  const [menuItems, setMenuItems] = useState<any[]>([]);
+  
+  // Edit Order State
+  const [editingOrder, setEditingOrder] = useState<any>(null);
 
   useEffect(() => {
     if (!isAuthenticated) return;
@@ -23,8 +27,10 @@ export default function AdminPage() {
     const fetchData = async () => {
       const { data: ordersData } = await supabase.from('orders').select('*').order('created_at', { ascending: false });
       const { data: reqData } = await supabase.from('service_requests').select('*').order('created_at', { ascending: false });
+      const { data: menuData } = await supabase.from('menu_items').select('*');
       if (ordersData) setOrders(ordersData);
       if (reqData) setRequests(reqData);
+      if (menuData) setMenuItems(menuData);
     };
 
     fetchData();
@@ -133,6 +139,35 @@ export default function AdminPage() {
 
   const resolveRequest = async (id: string) => {
     await supabase.from('service_requests').update({ status: 'Resuelto' }).eq('id', id);
+  };
+
+  const handleEditQuantity = (itemId: string, delta: number) => {
+    setEditingOrder((prev: any) => {
+      if (!prev) return prev;
+      const newItems = prev.items.map((item: any) => {
+        if (item.id === itemId) {
+          return { ...item, quantity: Math.max(0, item.quantity + delta) };
+        }
+        return item;
+      }).filter((item: any) => item.quantity > 0);
+      
+      const newTotal = newItems.reduce((sum: number, item: any) => sum + (item.price * item.quantity), 0);
+      return { ...prev, items: newItems, total: newTotal };
+    });
+  };
+
+  const saveEditedOrder = async () => {
+    if (!editingOrder) return;
+    
+    // Si borraron todo, tal vez deberíamos cancelar la orden
+    if (editingOrder.items.length === 0) {
+      await supabase.from('orders').update({ status: 'Cancelado', items: [], total: 0 }).eq('id', editingOrder.id);
+    } else {
+      await supabase.from('orders').update({ items: editingOrder.items, total: editingOrder.total }).eq('id', editingOrder.id);
+    }
+    
+    // La suscripción de Supabase recargará los datos automáticamente
+    setEditingOrder(null);
   };
 
   if (!isAuthenticated) {
@@ -263,12 +298,20 @@ export default function AdminPage() {
                           ))}
                         </div>
 
-                        <button 
-                          onClick={() => updateOrderStatus(order.id, 'Entregado')}
-                          className="w-full py-3 bg-zinc-900 hover:bg-zinc-800 text-white text-xs tracking-widest uppercase transition-colors"
-                        >
-                          Marcar como Servido
-                        </button>
+                        <div className="flex gap-2">
+                          <button 
+                            onClick={() => setEditingOrder(order)}
+                            className="w-1/3 py-3 border border-zinc-200 hover:bg-zinc-100 text-zinc-700 text-xs tracking-widest uppercase transition-colors"
+                          >
+                            ✏️ Editar
+                          </button>
+                          <button 
+                            onClick={() => updateOrderStatus(order.id, 'Entregado')}
+                            className="w-2/3 py-3 bg-zinc-900 hover:bg-zinc-800 text-white text-xs tracking-widest uppercase transition-colors"
+                          >
+                            Marcar como Servido
+                          </button>
+                        </div>
                       </div>
                     ))}
                   </div>
@@ -290,6 +333,52 @@ export default function AdminPage() {
               </div>
 
             </div>
+
+            {/* MODAL DE EDICION DE PEDIDO */}
+            {editingOrder && (
+              <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+                <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={() => setEditingOrder(null)}></div>
+                <div className="relative bg-white w-full max-w-md shadow-2xl flex flex-col max-h-[90vh]">
+                  <div className="p-6 border-b border-zinc-100 flex justify-between items-center bg-zinc-50">
+                    <h2 className="font-light text-xl tracking-wide uppercase">Editar Mesa {editingOrder.table_number}</h2>
+                    <button onClick={() => setEditingOrder(null)} className="text-zinc-400 hover:text-zinc-900 text-2xl font-light">&times;</button>
+                  </div>
+                  
+                  <div className="p-6 overflow-y-auto flex-grow space-y-4">
+                    {editingOrder.items.length === 0 ? (
+                      <p className="text-red-500 text-sm">El pedido quedará cancelado porque no tiene platos.</p>
+                    ) : (
+                      editingOrder.items.map((item: any) => (
+                        <div key={item.id} className="flex justify-between items-center border-b border-zinc-100 pb-4">
+                          <div>
+                            <p className="text-sm font-medium">{item.name}</p>
+                            <p className="text-xs text-zinc-500">${item.price.toFixed(2)} c/u</p>
+                          </div>
+                          <div className="flex items-center gap-4 bg-zinc-50 rounded-full px-2 py-1 border border-zinc-200">
+                            <button onClick={() => handleEditQuantity(item.id, -1)} className="w-8 h-8 flex items-center justify-center text-lg hover:text-red-500">-</button>
+                            <span className="w-4 text-center text-sm font-medium">{item.quantity}</span>
+                            <button onClick={() => handleEditQuantity(item.id, 1)} className="w-8 h-8 flex items-center justify-center text-lg hover:text-green-500">+</button>
+                          </div>
+                        </div>
+                      ))
+                    )}
+                  </div>
+                  
+                  <div className="p-6 border-t border-zinc-100 bg-zinc-50">
+                    <div className="flex justify-between mb-4">
+                      <span className="text-sm font-medium uppercase tracking-widest text-zinc-500">Nuevo Total</span>
+                      <span className="text-xl font-bold">${editingOrder.total.toFixed(2)}</span>
+                    </div>
+                    <button 
+                      onClick={saveEditedOrder}
+                      className="w-full py-4 bg-zinc-900 text-white font-sans text-xs tracking-widest uppercase hover:bg-zinc-800 transition-colors"
+                    >
+                      Guardar Cambios
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
         )}
 
@@ -321,17 +410,18 @@ export default function AdminPage() {
 
               <div>
                 <label className="block text-xs font-medium tracking-widest uppercase text-zinc-500 mb-2">Categoría</label>
-                <select 
+                <input 
                   name="category"
+                  list="category-list"
                   required
+                  placeholder="Ej. Destacados, Entradas, Pizzas..."
                   className="w-full px-4 py-3 border border-zinc-200 focus:border-zinc-900 outline-none transition-colors bg-white"
-                >
-                  <option value="Destacados">Destacados</option>
-                  <option value="Entradas">Entradas</option>
-                  <option value="Principales">Principales</option>
-                  <option value="Postres">Postres</option>
-                  <option value="Bebidas">Bebidas</option>
-                </select>
+                />
+                <datalist id="category-list">
+                  {Array.from(new Set(menuItems.map(item => item.category || "Destacados"))).map(cat => (
+                    <option key={cat as string} value={cat as string} />
+                  ))}
+                </datalist>
               </div>
 
               <div>

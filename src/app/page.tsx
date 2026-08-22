@@ -163,7 +163,7 @@ function MenuContent() {
       {/* Categorías */}
       <nav className="mb-10 md:mb-16 px-6 overflow-x-auto no-scrollbar">
         <div className="flex justify-start md:justify-center gap-8 md:gap-10 min-w-max">
-          {["Destacados", "Entradas", "Principales", "Postres"].map((cat) => (
+          {Array.from(new Set(menu.map(item => item.category || "Destacados"))).map((cat) => (
             <button
               key={cat}
               onClick={() => setActiveCategory(cat)}
