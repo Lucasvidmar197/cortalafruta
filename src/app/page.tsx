@@ -32,7 +32,6 @@ function MenuContent() {
   const [cart, setCart] = useState<CartItem[]>([]);
   const [isCartOpen, setIsCartOpen] = useState(false);
   const [isOrdering, setIsOrdering] = useState(false);
-  const [showMarkerModal, setShowMarkerModal] = useState(false);
 
   // Service Request States
   const [isCallingWaiter, setIsCallingWaiter] = useState(false);
@@ -177,27 +176,6 @@ function MenuContent() {
             Modo Catálogo
           </p>
         )}
-
-        <div className="mt-4 flex flex-wrap justify-center items-center gap-3">
-          <Link
-            href={`/ar-live${tableNumber ? `?mesa=${encodeURIComponent(tableNumber)}` : ''}`}
-            className="inline-flex items-center gap-2 bg-charcoal text-white px-5 py-2.5 rounded-full font-sans text-xs tracking-widest uppercase hover:bg-ink active:scale-95 transition-all shadow-md"
-          >
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <path d="M12 3L2 8l10 5 10-5-10-5z" />
-              <path d="M2 8v8l10 5V11" />
-              <path d="M22 8v8l-10 5V11" />
-            </svg>
-            ✨ Ver Todo el Menú en AR
-          </Link>
-
-          <button
-            onClick={() => setShowMarkerModal(true)}
-            className="text-stone hover:text-charcoal font-sans text-[10px] tracking-widest uppercase transition-colors underline underline-offset-4 py-1"
-          >
-            🎯 Marcador
-          </button>
-        </div>
       </header>
 
       {/* Categorías */}
@@ -272,29 +250,28 @@ function MenuContent() {
                     <div className="text-stone font-light tracking-widest text-xs uppercase">Sin imagen</div>
                   )}
                   
-                  {/* Botones AR */}
+                  {/* Botón Ver en mi mesa */}
                   {item.glbUrl && (
-                    <div className="absolute bottom-3 right-3 flex gap-2 z-10">
-                      <Link
-                        href={`/ar/${item.id}${tableNumber ? `?mesa=${encodeURIComponent(tableNumber)}` : ''}`}
-                        className="bg-white/90 backdrop-blur-sm text-charcoal border border-stone/30 px-2.5 py-1.5 text-[10px] uppercase tracking-[0.12em] hover:bg-charcoal hover:text-white transition-all flex items-center gap-1 rounded shadow-sm"
-                        title="Proyectar sobre marcador físico de mesa con MindAR"
-                      >
-                        🎯 Marcador
-                      </Link>
-                      <Link
-                        href={`/ar-live?item=${item.id}${tableNumber ? `&mesa=${encodeURIComponent(tableNumber)}` : ''}`}
-                        className="bg-white/90 backdrop-blur-sm text-charcoal border border-stone/30 px-3 py-1.5 text-[10px] uppercase tracking-[0.12em] hover:bg-charcoal hover:text-white transition-all flex items-center gap-1.5 rounded shadow-sm font-medium"
-                        title="Abrir en Realidad Aumentada de Superficie con carrusel de platos"
-                      >
-                        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                          <path d="M12 3L2 8l10 5 10-5-10-5z"/>
-                          <path d="M2 8v8l10 5V11"/>
-                          <path d="M22 8v8l-10 5V11"/>
-                        </svg>
-                        ✨ Ver en AR
-                      </Link>
-                    </div>
+                    <button
+                      onClick={() => {
+                        const viewer = document.getElementById(`viewer-${item.id}`) as any;
+                        if (viewer && viewer.canActivateAR) {
+                          viewer.activateAR();
+                        } else if (item.usdzUrl && /iPhone|iPad|iPod/i.test(navigator.userAgent)) {
+                          window.location.href = item.usdzUrl;
+                        } else {
+                          alert("Para proyectar este plato en tu mesa en Realidad Aumentada, abre la página desde Chrome en Android o Safari en iPhone.");
+                        }
+                      }}
+                      className="absolute bottom-3 right-3 bg-charcoal text-white border border-charcoal/30 px-3.5 py-2 text-[11px] uppercase tracking-wider hover:bg-black active:scale-95 transition-all flex items-center gap-1.5 rounded-full shadow-lg font-medium"
+                    >
+                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                        <path d="M12 3L2 8l10 5 10-5-10-5z"/>
+                        <path d="M2 8v8l10 5V11"/>
+                        <path d="M22 8v8l-10 5V11"/>
+                      </svg>
+                      Ver en mi mesa
+                    </button>
                   )}
                 </div>
                 
@@ -411,32 +388,6 @@ function MenuContent() {
                 </button>
               </div>
             )}
-          </div>
-        </div>
-      )}
-      {/* Modal: Mostrar imagen del Marcador */}
-      {showMarkerModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
-          <div className="bg-ivory border border-stone/30 p-6 max-w-sm w-full rounded-xl flex flex-col items-center text-center shadow-2xl">
-            <h3 className="font-serif text-lg tracking-wide text-charcoal mb-1">Marcador de Mesa (MindAR)</h3>
-            <p className="text-xs text-stone mb-4">
-              Para ver los platos anclados a la mesa, apunta la cámara del celular a esta imagen (puedes abrirla en otra pantalla o imprimirla):
-            </p>
-
-            <div className="bg-white p-3 rounded-lg mb-4 border border-stone/20 shadow-sm">
-              <img
-                src="/targets/table-target.png"
-                alt="Marcador de mesa"
-                className="w-56 h-auto object-contain"
-              />
-            </div>
-
-            <button
-              onClick={() => setShowMarkerModal(false)}
-              className="w-full py-2.5 bg-charcoal text-white font-sans text-xs tracking-widest uppercase font-medium rounded hover:bg-ink transition-colors"
-            >
-              Cerrar
-            </button>
           </div>
         </div>
       )}
