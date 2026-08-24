@@ -231,6 +231,8 @@ function MenuContent() {
                       'auto-rotate': true,
                       'disable-zoom': true,
                       'disable-pan': true,
+                      'min-camera-orbit': "auto 60deg auto",
+                      'max-camera-orbit': "auto 90deg auto",
                       'shadow-intensity': "1.5",
                       'exposure': "0.7",
                       'environment-image': "neutral",
