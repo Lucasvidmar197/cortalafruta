@@ -31,6 +31,7 @@ interface Product {
   badgeType?: "strawberry" | "kiwi" | "banana";
   imageUrl: string;
   has3DModel?: boolean;
+  categoryName?: string;
 }
 
 interface Category {
