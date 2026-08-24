@@ -145,46 +145,50 @@ function MenuContent() {
   const cartItemsCount = cart.reduce((sum, cartItem) => sum + cartItem.quantity, 0);
 
   return (
-    <div className="min-h-screen bg-zinc-50 text-zinc-900 pb-28 font-serif">
+    <div className="min-h-screen bg-ivory text-charcoal pb-28">
       
       {/* Toast Notification */}
       {notificationMsg && (
-        <div className="fixed top-4 left-1/2 -translate-x-1/2 z-50 bg-zinc-900 text-white px-6 py-3 rounded-full text-sm font-sans tracking-wide shadow-2xl transition-all">
+        <div className="fixed top-6 left-1/2 z-50 bg-ink text-white px-6 py-3 text-sm font-sans tracking-wide shadow-2xl animate-toast">
           {notificationMsg}
         </div>
       )}
 
-      {/* Header Premium (Fine Dining) */}
-      <header className="pt-16 pb-12 px-6 flex flex-col items-center justify-center text-center">
-        <h1 className="text-4xl font-light tracking-[0.3em] uppercase mb-4 text-zinc-900">
+      {/* Header — Fine Dining */}
+      <header className="pt-14 pb-10 px-6 flex flex-col items-center justify-center text-center">
+        <h1 className="font-serif text-3xl md:text-4xl font-normal tracking-[0.25em] uppercase text-charcoal">
           L'Atelier
         </h1>
-        <div className="w-12 h-[1px] bg-zinc-300 mb-4"></div>
-        <p className="text-zinc-500 font-sans text-xs tracking-[0.2em] uppercase mb-2">
+        <div className="flex items-center gap-3 mt-4 mb-3">
+          <div className="w-8 h-px bg-stone"></div>
+          <span className="text-stone text-xs">✦</span>
+          <div className="w-8 h-px bg-stone"></div>
+        </div>
+        <p className="text-stone font-sans text-[11px] tracking-[0.25em] uppercase">
           Experiencia Culinaria
         </p>
         {tableNumber ? (
-          <p className="mt-4 text-zinc-900 font-sans text-xs border border-zinc-200 bg-white px-4 py-1 rounded-full shadow-sm capitalize">
+          <p className="mt-5 text-charcoal font-sans text-[11px] border border-gold/40 bg-parchment px-5 py-1.5 tracking-widest uppercase">
             {isNaN(Number(tableNumber)) ? tableNumber : `Mesa ${tableNumber}`}
           </p>
         ) : (
-          <p className="mt-4 text-zinc-500 font-sans text-xs italic">
+          <p className="mt-5 text-stone font-sans text-[11px] italic tracking-wider">
             Modo Catálogo
           </p>
         )}
       </header>
 
       {/* Categorías */}
-      <nav className="mb-10 md:mb-16 px-6 overflow-x-auto no-scrollbar">
-        <div className="flex justify-start md:justify-center gap-8 md:gap-10 min-w-max">
+      <nav className="mb-10 px-6 overflow-x-auto no-scrollbar">
+        <div className="flex justify-start md:justify-center gap-6 md:gap-10 min-w-max">
           {Array.from(new Set(menu.map(item => item.category || "Destacados"))).map((cat) => (
             <button
               key={cat}
               onClick={() => setActiveCategory(cat)}
-              className={`pb-2 text-xs font-sans tracking-widest uppercase transition-all ${
+              className={`pb-2 text-[11px] font-sans tracking-[0.2em] uppercase transition-all ${
                 activeCategory === cat
-                  ? "text-zinc-900 border-b border-zinc-900"
-                  : "text-zinc-400 hover:text-zinc-600"
+                  ? "text-charcoal border-b border-charcoal"
+                  : "text-stone hover:text-charcoal"
               }`}
             >
               {cat}
@@ -193,110 +197,116 @@ function MenuContent() {
         </div>
       </nav>
 
-      <main className="px-6 max-w-4xl mx-auto">
-        <div className="space-y-16">
-          {loading ? (
-            <div className="flex justify-center py-20">
-              <div className="w-6 h-6 border border-zinc-900 border-t-transparent rounded-full animate-spin"></div>
-            </div>
-          ) : menu.filter(item => (item.category || "Destacados") === activeCategory).length === 0 ? (
-            <div className="text-center py-20">
-              <p className="text-slate-500 mt-1">No hay platos en esta categoría.</p>
-            </div>
-          ) : (
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6 md:gap-10">
-              {menu.filter(item => (item.category || "Destacados") === activeCategory).map((item) => (
-                <div key={item.id} className="bg-white group flex flex-col shadow-sm">
+      <main className="px-4 md:px-6 max-w-4xl mx-auto">
+        {loading ? (
+          <div className="flex justify-center py-20">
+            <div className="w-5 h-5 border border-charcoal border-t-transparent rounded-full animate-spin"></div>
+          </div>
+        ) : menu.filter(item => (item.category || "Destacados") === activeCategory).length === 0 ? (
+          <div className="text-center py-20">
+            <p className="text-stone text-sm italic">No hay platos en esta categoría.</p>
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-5 md:gap-8">
+            {menu.filter(item => (item.category || "Destacados") === activeCategory).map((item, idx) => (
+              <div 
+                key={item.id} 
+                className={`bg-parchment group flex flex-col rounded-lg overflow-hidden animate-fade-in-up delay-${Math.min(idx + 1, 6)}`}
+              >
+                
+                {/* Visor 3D / Imagen */}
+                <div className="h-72 md:h-80 bg-ivory/60 relative w-full flex items-center justify-center overflow-hidden">
+                  {item.glbUrl ? (
+                    React.createElement('model-viewer', {
+                      id: `viewer-${item.id}`,
+                      src: typeof window !== 'undefined' ? new URL(encodeURI(item.glbUrl), window.location.origin).href : encodeURI(item.glbUrl),
+                      'ios-src': item.usdzUrl ? (typeof window !== 'undefined' ? new URL(encodeURI(item.usdzUrl), window.location.origin).href : encodeURI(item.usdzUrl)) : undefined,
+                      alt: `Modelo 3D de ${item.name}`,
+                      ar: true,
+                      'ar-modes': "scene-viewer webxr quick-look",
+                      'ar-scale': "auto",
+                      'camera-controls': true,
+                      'auto-rotate': true,
+                      'disable-zoom': true,
+                      'disable-pan': true,
+                      'min-camera-orbit': "auto 0deg auto",
+                      'max-camera-orbit': "auto 85deg auto",
+                      'shadow-intensity': "1.0",
+                      'exposure': "0.6",
+                      'tone-mapping': "aces",
+                      'environment-image': "neutral",
+                      'loading': "eager",
+                      'reveal': "auto",
+                      style: { width: "100%", height: "100%", backgroundColor: "transparent" },
+                      class: "w-full h-full object-contain"
+                    })
+                  ) : item.imageUrls && item.imageUrls.length > 0 ? (
+                    <img src={item.imageUrls[0]} alt={item.name} className="w-full h-full object-cover" />
+                  ) : (
+                    <div className="text-stone font-light tracking-widest text-xs uppercase">Sin imagen</div>
+                  )}
                   
-                  {/* Visor 3D / Imagen */}
-                  <div className="h-80 bg-zinc-100/50 relative w-full flex items-center justify-center overflow-hidden">
-                    {item.glbUrl ? (
-                      React.createElement('model-viewer', {
-                        id: `viewer-${item.id}`,
-                        src: typeof window !== 'undefined' ? new URL(encodeURI(item.glbUrl), window.location.origin).href : encodeURI(item.glbUrl),
-                        'ios-src': item.usdzUrl ? (typeof window !== 'undefined' ? new URL(encodeURI(item.usdzUrl), window.location.origin).href : encodeURI(item.usdzUrl)) : undefined,
-                        alt: `Modelo 3D de ${item.name}`,
-                        ar: true,
-                        'ar-modes': "scene-viewer webxr quick-look",
-                        'ar-scale': "auto",
-                        'camera-controls': true,
-                        'auto-rotate': true,
-                        'disable-zoom': true,
-                        'disable-pan': true,
-                        'min-camera-orbit': "auto 0deg auto",
-                        'max-camera-orbit': "auto 85deg auto",
-                        'shadow-intensity': "1.0",
-                        'exposure': "0.6",
-                        'tone-mapping': "aces",
-                        'environment-image': "neutral",
-                        'loading': "eager",
-                        'reveal': "auto",
-                        style: { width: "100%", height: "100%", backgroundColor: "transparent" },
-                        class: "w-full h-full object-contain"
-                      })
-                    ) : item.imageUrls && item.imageUrls.length > 0 ? (
-                      <img src={item.imageUrls[0]} alt={item.name} className="w-full h-full object-cover" />
-                    ) : (
-                      <div className="text-zinc-400 font-light tracking-widest text-xs uppercase">Sin imagen</div>
-                    )}
-                    
-                    {/* Botón Flotante AR */}
-                    {item.glbUrl && (
-                      <button
-                        onClick={() => {
-                          const viewer = document.getElementById(`viewer-${item.id}`) as any;
-                          if (viewer && viewer.canActivateAR) {
-                            viewer.activateAR();
-                          } else {
-                            alert("La realidad aumentada no está disponible en este dispositivo.");
-                          }
-                        }}
-                        className="absolute bottom-4 right-4 bg-white/90 backdrop-blur-sm text-zinc-900 border border-zinc-200 px-4 py-2 text-[10px] uppercase tracking-widest hover:bg-zinc-900 hover:text-white transition-all flex items-center gap-2"
-                      >
-                        AR
-                      </button>
-                    )}
-                  </div>
-                  
-                  {/* Info del Plato */}
-                  <div className="pt-6 pb-6 px-6 flex flex-col flex-grow">
-                    <div className="flex justify-between items-baseline mb-3">
-                      <h2 className="text-xl font-light text-zinc-900 tracking-wide">{item.name}</h2>
-                      <span className="text-sm font-medium text-zinc-900">${item.price.toFixed(2)}</span>
-                    </div>
-                    <p className="text-zinc-500 text-sm font-sans font-light leading-relaxed mb-6 flex-grow">{item.description}</p>
-                    
-                    {tableNumber && (
-                      <button 
-                        onClick={() => addToCart(item)}
-                        className="w-full py-3 border border-zinc-900 text-zinc-900 font-sans text-xs tracking-widest uppercase hover:bg-zinc-900 hover:text-white transition-colors"
-                      >
-                        Añadir a la orden
-                      </button>
-                    )}
-                  </div>
+                  {/* Botón AR */}
+                  {item.glbUrl && (
+                    <button
+                      onClick={() => {
+                        const viewer = document.getElementById(`viewer-${item.id}`) as any;
+                        if (viewer && viewer.canActivateAR) {
+                          viewer.activateAR();
+                        } else {
+                          alert("La realidad aumentada no está disponible en este dispositivo.");
+                        }
+                      }}
+                      className="absolute bottom-3 right-3 bg-white/90 backdrop-blur-sm text-charcoal border border-stone/30 px-3 py-1.5 text-[10px] uppercase tracking-[0.15em] hover:bg-charcoal hover:text-white transition-all flex items-center gap-1.5 rounded"
+                    >
+                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                        <path d="M12 3L2 8l10 5 10-5-10-5z"/>
+                        <path d="M2 8v8l10 5V11"/>
+                        <path d="M22 8v8l-10 5V11"/>
+                      </svg>
+                      Ver en AR
+                    </button>
+                  )}
                 </div>
-              ))}
-            </div>
-          )}
-        </div>
+                
+                {/* Info del Plato */}
+                <div className="pt-5 pb-5 px-5 flex flex-col flex-grow">
+                  <div className="dot-leaders mb-2">
+                    <h2 className="font-serif text-lg md:text-xl font-normal text-charcoal whitespace-nowrap">{item.name}</h2>
+                    <span className="font-sans text-sm font-medium text-charcoal whitespace-nowrap">${item.price.toFixed(2)}</span>
+                  </div>
+                  <p className="text-stone text-[13px] font-sans font-light leading-relaxed mb-5 flex-grow">{item.description}</p>
+                  
+                  {tableNumber && (
+                    <button 
+                      onClick={() => addToCart(item)}
+                      className="w-full py-3 border border-charcoal/20 text-charcoal font-sans text-[11px] tracking-[0.15em] uppercase hover:bg-charcoal hover:text-white active:animate-btn-pulse transition-colors"
+                    >
+                      Añadir a la orden
+                    </button>
+                  )}
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
       </main>
 
-      {/* Footer Floating Actions for Table */}
+      {/* Footer Floating Actions */}
       {tableNumber && (
-        <div className="fixed bottom-0 left-0 w-full bg-white border-t border-zinc-200 p-3 md:px-4 md:py-4 z-40 flex justify-between items-center shadow-[0_-10px_40px_rgba(0,0,0,0.05)]">
+        <div className="fixed bottom-0 left-0 w-full bg-white/95 backdrop-blur-md border-t border-stone/20 p-3 md:px-4 md:py-4 z-40 flex justify-between items-center">
           <div className="flex gap-2">
             <button 
               onClick={callWaiter}
               disabled={isCallingWaiter}
-              className="px-3 py-3 md:px-4 bg-zinc-100 text-zinc-900 font-sans text-[10px] md:text-xs tracking-widest uppercase flex items-center gap-1.5 active:bg-zinc-200 transition-colors disabled:opacity-50 whitespace-nowrap"
+              className="px-3 py-3 md:px-4 bg-parchment text-charcoal font-sans text-[10px] md:text-[11px] tracking-[0.15em] uppercase flex items-center gap-1.5 active:bg-stone/20 transition-colors disabled:opacity-50 whitespace-nowrap rounded"
             >
               🛎️ <span className="hidden sm:inline">Mozo</span>
             </button>
             <button 
               onClick={askForBill}
               disabled={isAskingBill}
-              className="px-3 py-3 md:px-4 bg-zinc-100 text-zinc-900 font-sans text-[10px] md:text-xs tracking-widest uppercase flex items-center gap-1.5 active:bg-zinc-200 transition-colors disabled:opacity-50 whitespace-nowrap"
+              className="px-3 py-3 md:px-4 bg-parchment text-charcoal font-sans text-[10px] md:text-[11px] tracking-[0.15em] uppercase flex items-center gap-1.5 active:bg-stone/20 transition-colors disabled:opacity-50 whitespace-nowrap rounded"
             >
               🧾 <span className="hidden sm:inline">Cuenta</span>
             </button>
@@ -304,11 +314,11 @@ function MenuContent() {
           
           <button 
             onClick={() => setIsCartOpen(true)}
-            className="relative px-4 md:px-6 py-3 bg-zinc-900 text-white font-sans text-[10px] md:text-xs tracking-widest uppercase flex items-center gap-2 active:bg-zinc-800 transition-colors whitespace-nowrap"
+            className="relative px-4 md:px-6 py-3 bg-charcoal text-white font-sans text-[10px] md:text-[11px] tracking-[0.15em] uppercase flex items-center gap-2 active:bg-ink transition-colors whitespace-nowrap rounded"
           >
             Pedido
             {cartItemsCount > 0 && (
-              <span className="absolute -top-2 -right-2 bg-red-600 text-white text-[10px] w-5 h-5 flex items-center justify-center rounded-full">
+              <span className="absolute -top-2 -right-2 bg-gold text-white text-[10px] w-5 h-5 flex items-center justify-center rounded-full font-sans font-medium">
                 {cartItemsCount}
               </span>
             )}
@@ -320,27 +330,27 @@ function MenuContent() {
       {isCartOpen && (
         <div className="fixed inset-0 z-50 flex justify-end">
           <div className="absolute inset-0 bg-black/30 backdrop-blur-sm" onClick={() => setIsCartOpen(false)}></div>
-          <div className="relative w-full max-w-sm bg-white h-full shadow-2xl flex flex-col">
-            <div className="p-6 border-b border-zinc-100 flex justify-between items-center">
-              <h2 className="font-light text-xl tracking-wide">Tu Pedido</h2>
-              <button onClick={() => setIsCartOpen(false)} className="text-zinc-400 hover:text-zinc-900 text-2xl font-light">&times;</button>
+          <div className="relative w-full max-w-sm bg-ivory h-full shadow-2xl flex flex-col animate-slide-in-right">
+            <div className="p-6 border-b border-stone/20 flex justify-between items-center">
+              <h2 className="font-serif text-xl font-normal tracking-wide">Tu Pedido</h2>
+              <button onClick={() => setIsCartOpen(false)} className="text-stone hover:text-charcoal text-2xl font-light">&times;</button>
             </div>
             
             <div className="flex-grow p-6 overflow-y-auto">
               {cart.length === 0 ? (
-                <p className="text-zinc-500 font-sans font-light text-sm text-center mt-10">Tu carrito está vacío.</p>
+                <p className="text-stone font-sans font-light text-sm text-center mt-10">Tu carrito está vacío.</p>
               ) : (
-                <div className="space-y-6">
+                <div className="space-y-5">
                   {cart.map((c, i) => (
-                    <div key={i} className="flex flex-col gap-2 border-b border-zinc-100 pb-4 last:border-0 last:pb-0">
+                    <div key={i} className="flex flex-col gap-2 border-b border-stone/15 pb-4 last:border-0 last:pb-0">
                       <div className="flex justify-between items-start">
                         <div>
-                          <p className="font-sans text-sm text-zinc-900">{c.quantity}x {c.item.name}</p>
-                          <p className="font-sans text-xs text-zinc-400 mt-1">${c.item.price.toFixed(2)} c/u</p>
+                          <p className="font-sans text-sm text-charcoal">{c.quantity}x {c.item.name}</p>
+                          <p className="font-sans text-xs text-stone mt-1">${c.item.price.toFixed(2)} c/u</p>
                         </div>
-                        <div className="flex items-center gap-4">
+                        <div className="flex items-center gap-3">
                           <p className="font-sans text-sm font-medium">${(c.item.price * c.quantity).toFixed(2)}</p>
-                          <button onClick={() => removeFromCart(c.item.id)} className="text-red-500 text-xs uppercase font-sans tracking-wider hover:underline">Quitar</button>
+                          <button onClick={() => removeFromCart(c.item.id)} className="text-stone text-[11px] uppercase font-sans tracking-wider hover:text-charcoal transition-colors">Quitar</button>
                         </div>
                       </div>
                       <input 
@@ -348,7 +358,7 @@ function MenuContent() {
                         value={c.notes || ""} 
                         onChange={(e) => updateCartNote(c.item.id, e.target.value)}
                         placeholder="Aclaraciones (ej: sin sal, extra queso)" 
-                        className="w-full text-xs font-sans p-2 border border-zinc-200 bg-zinc-50 outline-none focus:border-zinc-400 focus:bg-white transition-colors"
+                        className="w-full text-xs font-sans p-2 border border-stone/20 bg-parchment outline-none focus:border-stone focus:bg-white transition-colors rounded"
                       />
                     </div>
                   ))}
@@ -357,15 +367,15 @@ function MenuContent() {
             </div>
 
             {cart.length > 0 && (
-              <div className="p-6 bg-zinc-50 border-t border-zinc-100">
-                <div className="flex justify-between items-center mb-6">
-                  <span className="font-sans text-sm text-zinc-500 uppercase tracking-widest">Total</span>
-                  <span className="font-sans text-xl font-medium">${cartTotal.toFixed(2)}</span>
+              <div className="p-6 bg-parchment border-t border-stone/20">
+                <div className="flex justify-between items-center mb-5">
+                  <span className="font-sans text-[11px] text-stone uppercase tracking-[0.2em]">Total</span>
+                  <span className="font-serif text-xl">${cartTotal.toFixed(2)}</span>
                 </div>
                 <button 
                   onClick={submitOrder}
                   disabled={isOrdering}
-                  className="w-full py-4 bg-zinc-900 text-white font-sans text-sm tracking-widest uppercase hover:bg-zinc-800 transition-colors disabled:opacity-70 flex justify-center items-center h-[52px]"
+                  className="w-full py-4 bg-charcoal text-white font-sans text-[11px] tracking-[0.15em] uppercase hover:bg-ink transition-colors disabled:opacity-70 flex justify-center items-center h-[52px] rounded"
                 >
                   {isOrdering ? <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin"></div> : "Enviar a cocina"}
                 </button>
