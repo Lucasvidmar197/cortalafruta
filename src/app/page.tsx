@@ -219,59 +219,42 @@ function MenuContent() {
                   {item.glbUrl ? (
                     React.createElement('model-viewer', {
                       id: `viewer-${item.id}`,
-                      src: typeof window !== 'undefined' ? new URL(encodeURI(item.glbUrl), window.location.origin).href : encodeURI(item.glbUrl),
-                      'ios-src': item.usdzUrl ? (typeof window !== 'undefined' ? new URL(encodeURI(item.usdzUrl), window.location.origin).href : encodeURI(item.usdzUrl)) : undefined,
+                      src: item.glbUrl,
+                      'ios-src': item.usdzUrl || undefined,
                       alt: `Modelo 3D de ${item.name}`,
                       ar: true,
                       'ar-modes': "webxr scene-viewer quick-look",
                       'ar-scale': "fixed",
-                      'ar-placement': "floor",
                       'interaction-prompt': "none",
                       scale: item.scale ? `${item.scale} ${item.scale} ${item.scale}` : "1 1 1",
                       'camera-controls': true,
                       'auto-rotate': true,
                       'disable-zoom': true,
                       'disable-pan': true,
-                      'min-camera-orbit': "auto 0deg auto",
-                      'max-camera-orbit': "auto 85deg auto",
                       'shadow-intensity': "1.5",
-                      'shadow-softness': "0.8",
                       'exposure': "0.7",
-                      'tone-mapping': "aces",
                       'environment-image': "neutral",
                       'loading': "eager",
                       'reveal': "auto",
                       style: { width: "100%", height: "100%", backgroundColor: "transparent" },
                       class: "w-full h-full object-contain"
-                    })
+                    },
+                      <button
+                        slot="ar-button"
+                        className="absolute bottom-3 right-3 bg-charcoal text-white border border-charcoal/30 px-3.5 py-2 text-[11px] uppercase tracking-wider hover:bg-black active:scale-95 transition-all flex items-center gap-1.5 rounded-full shadow-lg font-medium"
+                      >
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                          <path d="M12 3L2 8l10 5 10-5-10-5z"/>
+                          <path d="M2 8v8l10 5V11"/>
+                          <path d="M22 8v8l-10 5V11"/>
+                        </svg>
+                        Ver en mi mesa
+                      </button>
+                    )
                   ) : item.imageUrls && item.imageUrls.length > 0 ? (
                     <img src={item.imageUrls[0]} alt={item.name} className="w-full h-full object-cover" />
                   ) : (
                     <div className="text-stone font-light tracking-widest text-xs uppercase">Sin imagen</div>
-                  )}
-                  
-                  {/* Botón Ver en mi mesa */}
-                  {item.glbUrl && (
-                    <button
-                      onClick={() => {
-                        const viewer = document.getElementById(`viewer-${item.id}`) as any;
-                        if (viewer && viewer.canActivateAR) {
-                          viewer.activateAR();
-                        } else if (item.usdzUrl && /iPhone|iPad|iPod/i.test(navigator.userAgent)) {
-                          window.location.href = item.usdzUrl;
-                        } else {
-                          alert("Para proyectar este plato en tu mesa en Realidad Aumentada, abre la página desde Chrome en Android o Safari en iPhone.");
-                        }
-                      }}
-                      className="absolute bottom-3 right-3 bg-charcoal text-white border border-charcoal/30 px-3.5 py-2 text-[11px] uppercase tracking-wider hover:bg-black active:scale-95 transition-all flex items-center gap-1.5 rounded-full shadow-lg font-medium"
-                    >
-                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                        <path d="M12 3L2 8l10 5 10-5-10-5z"/>
-                        <path d="M2 8v8l10 5V11"/>
-                        <path d="M22 8v8l-10 5V11"/>
-                      </svg>
-                      Ver en mi mesa
-                    </button>
                   )}
                 </div>
                 
