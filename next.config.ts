@@ -12,6 +12,15 @@ const nextConfig: NextConfig = {
       },
     ],
   },
+  async redirects() {
+    return [
+      {
+        source: '/',
+        destination: '/corta-la-fruta',
+        permanent: false,
+      },
+    ];
+  },
   async headers() {
     return [
       {
