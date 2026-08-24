@@ -32,6 +32,7 @@ function MenuContent() {
   const [cart, setCart] = useState<CartItem[]>([]);
   const [isCartOpen, setIsCartOpen] = useState(false);
   const [isOrdering, setIsOrdering] = useState(false);
+  const [showMarkerModal, setShowMarkerModal] = useState(false);
 
   // Service Request States
   const [isCallingWaiter, setIsCallingWaiter] = useState(false);
@@ -176,6 +177,13 @@ function MenuContent() {
             Modo Catálogo
           </p>
         )}
+
+        <button
+          onClick={() => setShowMarkerModal(true)}
+          className="mt-3 text-stone hover:text-charcoal font-sans text-[10px] tracking-widest uppercase transition-colors underline underline-offset-4"
+        >
+          🎯 Ver Marcador de Mesa (MindAR)
+        </button>
       </header>
 
       {/* Categorías */}
@@ -250,26 +258,35 @@ function MenuContent() {
                     <div className="text-stone font-light tracking-widest text-xs uppercase">Sin imagen</div>
                   )}
                   
-                  {/* Botón AR */}
+                  {/* Botones AR */}
                   {item.glbUrl && (
-                    <button
-                      onClick={() => {
-                        const viewer = document.getElementById(`viewer-${item.id}`) as any;
-                        if (viewer && viewer.canActivateAR) {
-                          viewer.activateAR();
-                        } else {
-                          alert("La realidad aumentada no está disponible en este dispositivo.");
-                        }
-                      }}
-                      className="absolute bottom-3 right-3 bg-white/90 backdrop-blur-sm text-charcoal border border-stone/30 px-3 py-1.5 text-[10px] uppercase tracking-[0.15em] hover:bg-charcoal hover:text-white transition-all flex items-center gap-1.5 rounded"
-                    >
-                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-                        <path d="M12 3L2 8l10 5 10-5-10-5z"/>
-                        <path d="M2 8v8l10 5V11"/>
-                        <path d="M22 8v8l-10 5V11"/>
-                      </svg>
-                      Ver en AR
-                    </button>
+                    <div className="absolute bottom-3 right-3 flex gap-2 z-10">
+                      <Link
+                        href={`/ar/${item.id}${tableNumber ? `?mesa=${encodeURIComponent(tableNumber)}` : ''}`}
+                        className="bg-white/90 backdrop-blur-sm text-charcoal border border-stone/30 px-2.5 py-1.5 text-[10px] uppercase tracking-[0.12em] hover:bg-charcoal hover:text-white transition-all flex items-center gap-1 rounded shadow-sm"
+                        title="Proyectar sobre marcador físico de mesa con MindAR"
+                      >
+                        🎯 Marcador
+                      </Link>
+                      <button
+                        onClick={() => {
+                          const viewer = document.getElementById(`viewer-${item.id}`) as any;
+                          if (viewer && viewer.canActivateAR) {
+                            viewer.activateAR();
+                          } else {
+                            alert("La realidad aumentada no está disponible en este dispositivo.");
+                          }
+                        }}
+                        className="bg-white/90 backdrop-blur-sm text-charcoal border border-stone/30 px-2.5 py-1.5 text-[10px] uppercase tracking-[0.12em] hover:bg-charcoal hover:text-white transition-all flex items-center gap-1 rounded shadow-sm"
+                      >
+                        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                          <path d="M12 3L2 8l10 5 10-5-10-5z"/>
+                          <path d="M2 8v8l10 5V11"/>
+                          <path d="M22 8v8l-10 5V11"/>
+                        </svg>
+                        Superficie
+                      </button>
+                    </div>
                   )}
                 </div>
                 
@@ -386,6 +403,32 @@ function MenuContent() {
                 </button>
               </div>
             )}
+          </div>
+        </div>
+      )}
+      {/* Modal: Mostrar imagen del Marcador */}
+      {showMarkerModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
+          <div className="bg-ivory border border-stone/30 p-6 max-w-sm w-full rounded-xl flex flex-col items-center text-center shadow-2xl">
+            <h3 className="font-serif text-lg tracking-wide text-charcoal mb-1">Marcador de Mesa (MindAR)</h3>
+            <p className="text-xs text-stone mb-4">
+              Para ver los platos anclados a la mesa, apunta la cámara del celular a esta imagen (puedes abrirla en otra pantalla o imprimirla):
+            </p>
+
+            <div className="bg-white p-3 rounded-lg mb-4 border border-stone/20 shadow-sm">
+              <img
+                src="/targets/table-target.png"
+                alt="Marcador de mesa"
+                className="w-56 h-auto object-contain"
+              />
+            </div>
+
+            <button
+              onClick={() => setShowMarkerModal(false)}
+              className="w-full py-2.5 bg-charcoal text-white font-sans text-xs tracking-widest uppercase font-medium rounded hover:bg-ink transition-colors"
+            >
+              Cerrar
+            </button>
           </div>
         </div>
       )}
