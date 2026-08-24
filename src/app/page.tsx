@@ -178,12 +178,26 @@ function MenuContent() {
           </p>
         )}
 
-        <button
-          onClick={() => setShowMarkerModal(true)}
-          className="mt-3 text-stone hover:text-charcoal font-sans text-[10px] tracking-widest uppercase transition-colors underline underline-offset-4"
-        >
-          🎯 Ver Marcador de Mesa (MindAR)
-        </button>
+        <div className="mt-4 flex flex-wrap justify-center items-center gap-3">
+          <Link
+            href={`/ar-live${tableNumber ? `?mesa=${encodeURIComponent(tableNumber)}` : ''}`}
+            className="inline-flex items-center gap-2 bg-charcoal text-white px-5 py-2.5 rounded-full font-sans text-xs tracking-widest uppercase hover:bg-ink active:scale-95 transition-all shadow-md"
+          >
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M12 3L2 8l10 5 10-5-10-5z" />
+              <path d="M2 8v8l10 5V11" />
+              <path d="M22 8v8l-10 5V11" />
+            </svg>
+            ✨ Ver Todo el Menú en AR
+          </Link>
+
+          <button
+            onClick={() => setShowMarkerModal(true)}
+            className="text-stone hover:text-charcoal font-sans text-[10px] tracking-widest uppercase transition-colors underline underline-offset-4 py-1"
+          >
+            🎯 Marcador
+          </button>
+        </div>
       </header>
 
       {/* Categorías */}
@@ -268,24 +282,18 @@ function MenuContent() {
                       >
                         🎯 Marcador
                       </Link>
-                      <button
-                        onClick={() => {
-                          const viewer = document.getElementById(`viewer-${item.id}`) as any;
-                          if (viewer && viewer.canActivateAR) {
-                            viewer.activateAR();
-                          } else {
-                            alert("La realidad aumentada no está disponible en este dispositivo.");
-                          }
-                        }}
-                        className="bg-white/90 backdrop-blur-sm text-charcoal border border-stone/30 px-2.5 py-1.5 text-[10px] uppercase tracking-[0.12em] hover:bg-charcoal hover:text-white transition-all flex items-center gap-1 rounded shadow-sm"
+                      <Link
+                        href={`/ar-live?item=${item.id}${tableNumber ? `&mesa=${encodeURIComponent(tableNumber)}` : ''}`}
+                        className="bg-white/90 backdrop-blur-sm text-charcoal border border-stone/30 px-3 py-1.5 text-[10px] uppercase tracking-[0.12em] hover:bg-charcoal hover:text-white transition-all flex items-center gap-1.5 rounded shadow-sm font-medium"
+                        title="Abrir en Realidad Aumentada de Superficie con carrusel de platos"
                       >
-                        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                           <path d="M12 3L2 8l10 5 10-5-10-5z"/>
                           <path d="M2 8v8l10 5V11"/>
                           <path d="M22 8v8l-10 5V11"/>
                         </svg>
-                        Superficie
-                      </button>
+                        ✨ Ver en AR
+                      </Link>
                     </div>
                   )}
                 </div>
