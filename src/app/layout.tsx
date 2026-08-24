@@ -1,13 +1,26 @@
 import type { Metadata } from "next";
-import { Inter, Playfair_Display } from "next/font/google";
+import { Plus_Jakarta_Sans } from "next/font/google";
 import "./globals.css";
 
-const inter = Inter({ subsets: ["latin"], variable: "--font-inter" });
-const playfair = Playfair_Display({ subsets: ["latin"], variable: "--font-playfair" });
+const plusJakartaSans = Plus_Jakarta_Sans({ 
+  subsets: ["latin"],
+  variable: "--font-plus-jakarta",
+  weight: ["400", "500", "600", "700", "800"],
+  display: "swap",
+});
 
 export const metadata: Metadata = {
-  title: "L'Atelier — Menú",
-  description: "Experiencia culinaria con Realidad Aumentada",
+  title: "Corta la Fruta | Frutería & Bar Saludable - Quilmes",
+  description: "Lo fresco, lo rico y lo simple, en un solo lugar. Vasos de fruta, ensaladas 100% naturales, yogur con granola y oats en Quilmes. Pedí directo por WhatsApp.",
+  keywords: ["fruta fresca", "quilmes", "corta la fruta", "ensalada de frutas", "bar saludable", "delicias naturales"],
+  authors: [{ name: "Vidrro Engineering" }],
+  openGraph: {
+    title: "Corta la Fruta | Frutería & Bar Saludable - Quilmes",
+    description: "Lo fresco, lo rico y lo simple, en un solo lugar.",
+    siteName: "Corta la Fruta",
+    locale: "es_AR",
+    type: "website",
+  },
 };
 
 export default function RootLayout({
@@ -20,7 +33,9 @@ export default function RootLayout({
       <head>
         <script type="module" src="https://ajax.googleapis.com/ajax/libs/model-viewer/4.0.0/model-viewer.min.js" async></script>
       </head>
-      <body className={`${inter.variable} ${playfair.variable} font-sans`}>{children}</body>
+      <body className={`${plusJakartaSans.variable} font-sans bg-[#FAF9F6] text-zinc-900 min-h-screen selection:bg-rose-500 selection:text-white`}>
+        {children}
+      </body>
     </html>
   );
 }
