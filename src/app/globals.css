@@ -37,20 +37,6 @@ body {
   scrollbar-width: none;
 }
 
-/* ── Dot Leaders (menú de papel) ── */
-.dot-leaders {
-  display: flex;
-  align-items: baseline;
-  gap: 0;
-}
-.dot-leaders::after {
-  content: "";
-  flex: 1;
-  border-bottom: 1px dotted var(--stone);
-  margin: 0 8px;
-  position: relative;
-  top: -4px;
-}
 
 /* ── Animaciones ── */
 @keyframes fade-in-up {

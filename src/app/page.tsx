@@ -271,9 +271,10 @@ function MenuContent() {
                 
                 {/* Info del Plato */}
                 <div className="pt-5 pb-5 px-5 flex flex-col flex-grow">
-                  <div className="dot-leaders mb-2">
-                    <h2 className="font-serif text-lg md:text-xl font-normal text-charcoal whitespace-nowrap">{item.name}</h2>
-                    <span className="font-sans text-sm font-medium text-charcoal whitespace-nowrap">${item.price.toFixed(2)}</span>
+                  <div className="flex items-baseline justify-between gap-2 mb-2 w-full">
+                    <h2 className="font-serif text-lg md:text-xl font-normal text-charcoal leading-snug">{item.name}</h2>
+                    <span className="flex-1 border-b border-dotted border-stone/40 mx-2 relative -top-1 min-w-[12px]"></span>
+                    <span className="font-sans text-base md:text-lg font-medium text-charcoal shrink-0">${item.price.toFixed(2)}</span>
                   </div>
                   <p className="text-stone text-[13px] font-sans font-light leading-relaxed mb-5 flex-grow">{item.description}</p>
                   
