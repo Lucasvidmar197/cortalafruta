@@ -227,6 +227,7 @@ function MenuContent() {
                       'ar-scale': "fixed",
                       'ar-placement': "floor",
                       'interaction-prompt': "none",
+                      scale: item.scale ? `${item.scale} ${item.scale} ${item.scale}` : "1 1 1",
                       'camera-controls': true,
                       'auto-rotate': true,
                       'disable-zoom': true,

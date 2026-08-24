@@ -200,6 +200,7 @@ export default function AdminPage() {
     const name = formData.get("name") as string;
     const description = formData.get("description") as string;
     const price = parseFloat(formData.get("price") as string) || 0;
+    const scale = parseFloat(formData.get("scale") as string) || 1;
     const category = formData.get("category") as string;
     
     const glb = formData.get("glb") as File | null;
@@ -239,7 +240,7 @@ export default function AdminPage() {
         name,
         description: description || '',
         price,
-        scale: 1,
+        scale,
         glburl: glbUrl,
         usdzurl: usdzUrl,
         category: category || 'Destacados',
@@ -274,10 +275,11 @@ export default function AdminPage() {
       const name = formData.get("name") as string;
       const description = formData.get("description") as string;
       const price = formData.get("price") as string;
+      const scale = parseFloat(formData.get("scale") as string) || 1;
       const category = formData.get("category") as string;
 
       await supabase.from('menu_items').update({
-        name, description, price: parseFloat(price), category: category || "Destacados"
+        name, description, price: parseFloat(price), scale, category: category || "Destacados"
       }).eq('id', editingMenuItem.id);
       setEditingMenuItem(null);
       fetchData();
@@ -844,7 +846,7 @@ export default function AdminPage() {
             <div className="bg-white p-8 border border-zinc-200 shadow-sm self-start sticky top-[160px]">
               <h2 className="text-lg font-light tracking-widest uppercase border-b border-zinc-200 pb-4 mb-8">Agregar Plato al Menú</h2>
               <form onSubmit={handleMenuSubmit} className="space-y-6">
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                   <div>
                     <label className="block text-xs font-medium tracking-widest uppercase text-zinc-500 mb-2">Nombre del Plato</label>
                     <input name="name" type="text" required className="w-full px-4 py-3 border border-zinc-200 focus:border-zinc-900 outline-none transition-colors" />
@@ -852,6 +854,10 @@ export default function AdminPage() {
                   <div>
                     <label className="block text-xs font-medium tracking-widest uppercase text-zinc-500 mb-2">Precio ($)</label>
                     <input name="price" type="number" step="0.01" required className="w-full px-4 py-3 border border-zinc-200 focus:border-zinc-900 outline-none transition-colors" />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-medium tracking-widest uppercase text-zinc-500 mb-2">Escala AR (1 = 100%)</label>
+                    <input name="scale" type="number" step="0.01" defaultValue="1" required className="w-full px-4 py-3 border border-zinc-200 focus:border-zinc-900 outline-none transition-colors" />
                   </div>
                 </div>
 
@@ -931,7 +937,7 @@ export default function AdminPage() {
                     <button onClick={() => setEditingMenuItem(null)} className="text-zinc-400 hover:text-zinc-900 text-2xl font-light">&times;</button>
                   </div>
                   <form onSubmit={saveEditedMenuItem} className="p-6 space-y-6">
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                       <div>
                         <label className="block text-xs font-medium tracking-widest uppercase text-zinc-500 mb-2">Nombre</label>
                         <input name="name" defaultValue={editingMenuItem.name} type="text" required className="w-full px-4 py-3 border border-zinc-200 focus:border-zinc-900 outline-none" />
@@ -939,6 +945,10 @@ export default function AdminPage() {
                       <div>
                         <label className="block text-xs font-medium tracking-widest uppercase text-zinc-500 mb-2">Precio ($)</label>
                         <input name="price" defaultValue={editingMenuItem.price} type="number" step="0.01" required className="w-full px-4 py-3 border border-zinc-200 focus:border-zinc-900 outline-none" />
+                      </div>
+                      <div>
+                        <label className="block text-xs font-medium tracking-widest uppercase text-zinc-500 mb-2">Escala AR (1 = 100%)</label>
+                        <input name="scale" defaultValue={editingMenuItem.scale || 1} type="number" step="0.01" required className="w-full px-4 py-3 border border-zinc-200 focus:border-zinc-900 outline-none" />
                       </div>
                     </div>
                     <div>
