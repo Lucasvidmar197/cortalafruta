@@ -5,6 +5,48 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { supabase } from "@/lib/supabase";
 import { QRCodeSVG } from "qrcode.react";
+import { WebIO } from "@gltf-transform/core";
+import { KHRMaterialsUnlit } from "@gltf-transform/extensions";
+
+const processGlbUnlit = async (file: File): Promise<Blob> => {
+  try {
+    const io = new WebIO().registerExtensions([KHRMaterialsUnlit]);
+    const buffer = await file.arrayBuffer();
+    const doc = await io.readBinary(new Uint8Array(buffer));
+    const unlitExtension = doc.createExtension(KHRMaterialsUnlit);
+    const unlit = unlitExtension.createUnlit();
+    
+    for (const material of doc.getRoot().listMaterials()) {
+      material.setExtension('KHR_materials_unlit', unlit);
+      material.setMetallicFactor(0);
+      material.setRoughnessFactor(1);
+    }
+    
+    const modifiedBuffer = await io.writeBinary(doc);
+    return new Blob([modifiedBuffer], { type: 'model/gltf-binary' });
+  } catch (err) {
+    console.warn("Could not inject unlit on client, using original file:", err);
+    return file;
+  }
+};
+
+const uploadToSupabase = async (file: File | Blob, originalName: string, contentType: string) => {
+  const fileName = `${Date.now()}-${originalName.replace(/\s+/g, '_')}`;
+  const { data, error } = await supabase.storage
+    .from('menu-assets')
+    .upload(fileName, file, {
+      contentType: contentType,
+      upsert: false,
+    });
+
+  if (error) throw error;
+
+  const { data: publicUrlData } = supabase.storage
+    .from('menu-assets')
+    .getPublicUrl(fileName);
+
+  return publicUrlData.publicUrl;
+};
 
 export default function AdminPage() {
   const router = useRouter();
@@ -44,7 +86,14 @@ export default function AdminPage() {
     
     if (ordersData) setOrders(ordersData);
     if (reqData) setRequests(reqData);
-    if (menuData) setMenuItems(menuData);
+    if (menuData) {
+      setMenuItems(menuData.map(item => ({
+        ...item,
+        glbUrl: item.glburl,
+        usdzUrl: item.usdzurl,
+        imageUrls: item.image_urls || [],
+      })));
+    }
     if (tablesData) setTables(tablesData);
   };
 
@@ -150,44 +199,61 @@ export default function AdminPage() {
     const formData = new FormData(e.currentTarget);
     const name = formData.get("name") as string;
     const description = formData.get("description") as string;
-    const price = formData.get("price") as string;
+    const price = parseFloat(formData.get("price") as string) || 0;
     const category = formData.get("category") as string;
     
-    const uploadData = new FormData();
-    const glb = formData.get("glb") as File;
-    const usdz = formData.get("usdz") as File;
+    const glb = formData.get("glb") as File | null;
+    const usdz = formData.get("usdz") as File | null;
     const imageFiles = formData.getAll("images") as File[];
-    
-    if (glb && glb.size > 0) uploadData.append("glb", glb);
-    if (usdz && usdz.size > 0) uploadData.append("usdz", usdz);
-    for (const img of imageFiles) if (img.size > 0) uploadData.append("images", img);
 
     try {
-      let uploadedFiles: { glb?: string; usdz?: string; images?: string[] } = {};
+      let glbUrl = "";
+      let usdzUrl = "";
+      const imageUrls: string[] = [];
 
-      if ((glb && glb.size > 0) || (usdz && usdz.size > 0) || imageFiles.some(f => f.size > 0)) {
-        const uploadRes = await fetch("/api/upload", { method: "POST", body: uploadData });
-        if (!uploadRes.ok) throw new Error("File upload failed");
-        uploadedFiles = await uploadRes.json();
+      // 1. Upload GLB directly to Supabase Storage
+      if (glb && glb.size > 0) {
+        if (glb.size > 50 * 1024 * 1024) throw new Error("El archivo .glb supera los 50MB.");
+        const processedBlob = await processGlbUnlit(glb);
+        glbUrl = await uploadToSupabase(processedBlob, glb.name, 'model/gltf-binary');
       }
 
-      const menuRes = await fetch("/api/menu", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          name, description, price: parseFloat(price), category: category || "Destacados",
-          scale: 1, glbUrl: uploadedFiles.glb || "", usdzUrl: uploadedFiles.usdz || "",
-          imageUrls: uploadedFiles.images || [],
-        }),
+      // 2. Upload USDZ directly to Supabase Storage
+      if (usdz && usdz.size > 0) {
+        if (usdz.size > 50 * 1024 * 1024) throw new Error("El archivo .usdz supera los 50MB.");
+        usdzUrl = await uploadToSupabase(usdz, usdz.name, usdz.type || 'model/vnd.usdz+zip');
+      }
+
+      // 3. Upload Images directly to Supabase Storage
+      for (const img of imageFiles) {
+        if (img.size > 0) {
+          const url = await uploadToSupabase(img, img.name, img.type || 'image/jpeg');
+          imageUrls.push(url);
+        }
+      }
+
+      // 4. Insert menu item with authenticated Supabase client
+      const id = Date.now().toString();
+      const { error: insertError } = await supabase.from('menu_items').insert({
+        id,
+        name,
+        description: description || '',
+        price,
+        scale: 1,
+        glburl: glbUrl,
+        usdzurl: usdzUrl,
+        category: category || 'Destacados',
+        image_urls: imageUrls,
       });
 
-      if (!menuRes.ok) throw new Error("Failed to save menu item");
+      if (insertError) throw insertError;
+
       alert("Plato agregado exitosamente");
       (e.target as HTMLFormElement).reset();
       fetchData();
-    } catch (error) {
+    } catch (error: any) {
       console.error(error);
-      alert("Hubo un error al guardar el plato.");
+      alert(`Hubo un error al guardar el plato: ${error.message || error}`);
     } finally {
       setLoading(false);
     }
