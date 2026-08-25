@@ -717,7 +717,6 @@ export default function CortaLaFrutaPublicPage() {
                         React.createElement('model-viewer', {
                           id: `grid-viewer-${product.id}`,
                           src: product.glbUrl,
-                          poster: product.imageUrl,
                           alt: product.name,
                           ar: true,
                           'ar-modes': "scene-viewer webxr quick-look",
@@ -913,7 +912,6 @@ export default function CortaLaFrutaPublicPage() {
                           React.createElement('model-viewer', {
                             id: `cat-grid-viewer-${product.id}`,
                             src: product.glbUrl,
-                            poster: product.imageUrl,
                             alt: product.name,
                             ar: true,
                             'ar-modes': "scene-viewer webxr quick-look",
@@ -1134,7 +1132,6 @@ export default function CortaLaFrutaPublicPage() {
               {React.createElement('model-viewer', {
                 id: `viewer-${active3DModal.id}`,
                 src: active3DModal.glbUrl || "/uploads/1787369490158-Spicy Ramen.glb",
-                poster: active3DModal.imageUrl,
                 'ios-src': active3DModal.usdzUrl || undefined,
                 alt: `Modelo 3D de ${active3DModal.name}`,
                 ar: true,
