@@ -569,7 +569,7 @@ export default function CortaLaFrutaPublicPage() {
           </div>
 
           {/* Category Filter Pills (Scrollable & Dragable on PC & Mobile) */}
-          <div className="flex-1 min-w-0 flex items-center gap-2">
+          <div className="w-full max-w-full md:flex-1 min-w-0 flex items-center gap-1.5 sm:gap-2">
             
             {/* PC Left Scroll Arrow Button */}
             <button
@@ -587,13 +587,13 @@ export default function CortaLaFrutaPublicPage() {
               onMouseLeave={handleCategoryMouseLeaveOrUp}
               onMouseUp={handleCategoryMouseLeaveOrUp}
               onMouseMove={handleCategoryMouseMove}
-              className={`flex-1 min-w-0 flex items-center gap-2 overflow-x-auto no-scrollbar py-1 scroll-smooth touch-pan-x cursor-grab ${
+              className={`w-full min-w-0 flex items-center gap-1.5 sm:gap-2 overflow-x-auto no-scrollbar py-1 scroll-smooth touch-pan-x cursor-grab ${
                 isMouseDown ? "cursor-grabbing select-none" : ""
               }`}
             >
               <button
                 onClick={() => setActiveCategory("all")}
-                className={`shrink-0 px-3.5 py-2 rounded-xl text-xs font-bold whitespace-nowrap transition-all ${
+                className={`shrink-0 px-3 sm:px-3.5 py-1.5 sm:py-2 rounded-xl text-xs font-bold whitespace-nowrap transition-all ${
                   activeCategory === "all"
                     ? "bg-zinc-900 text-white shadow-xs"
                     : "bg-zinc-100 text-zinc-600 hover:bg-zinc-200/70"
@@ -605,7 +605,7 @@ export default function CortaLaFrutaPublicPage() {
                 <button
                   key={cat.id}
                   onClick={() => setActiveCategory(cat.id)}
-                  className={`shrink-0 px-3.5 py-2 rounded-xl text-xs font-bold whitespace-nowrap transition-all flex items-center gap-1.5 ${
+                  className={`shrink-0 px-3 sm:px-3.5 py-1.5 sm:py-2 rounded-xl text-xs font-bold whitespace-nowrap transition-all flex items-center gap-1.5 ${
                     activeCategory === cat.id
                       ? cat.theme === "strawberry" 
                         ? "bg-rose-500 text-white shadow-xs" 
