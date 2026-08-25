@@ -1050,11 +1050,39 @@ export default function CortaLaFrutaPublicPage() {
           >
             {/* Modal Image Header */}
             <div className="relative aspect-4/3 w-full bg-zinc-100 shrink-0 overflow-hidden">
-              <img 
-                src={selectedProduct.imageUrl} 
-                alt={selectedProduct.name}
-                className="w-full h-full object-cover"
-              />
+              {selectedProduct.has3DModel && selectedProduct.glbUrl ? (
+                <div 
+                  className="w-full h-full cursor-grab active:cursor-grabbing"
+                  onPointerDown={(e) => e.stopPropagation()}
+                >
+                  {React.createElement('model-viewer', {
+                    id: `modal-img-viewer-${selectedProduct.id}`,
+                    src: selectedProduct.glbUrl,
+                    alt: selectedProduct.name,
+                    ar: true,
+                    'ar-modes': "scene-viewer webxr quick-look",
+                    'interaction-prompt': "none",
+                    'camera-controls': true,
+                    'auto-rotate': true,
+                    'disable-zoom': true,
+                    'disable-pan': true,
+                    'min-camera-orbit': "auto 0deg auto",
+                    'max-camera-orbit': "auto 90deg auto",
+                    'shadow-intensity': "0",
+                    'exposure': "0.8",
+                    'environment-image': "neutral",
+                    'loading': "eager",
+                    style: { width: "100%", height: "100%", backgroundColor: "transparent" },
+                    class: "w-full h-full object-contain"
+                  })}
+                </div>
+              ) : (
+                <img 
+                  src={selectedProduct.imageUrl} 
+                  alt={selectedProduct.name}
+                  className="w-full h-full object-cover"
+                />
+              )}
               
               {/* Close Button */}
               <button 
