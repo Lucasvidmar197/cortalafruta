@@ -711,17 +711,37 @@ export default function CortaLaFrutaPublicPage() {
                     onClick={() => setSelectedProduct(product)}
                     className="cursor-pointer bg-white rounded-xl sm:rounded-2xl border border-zinc-200/80 overflow-hidden shadow-2xs hover:shadow-md transition-all flex flex-col justify-between group p-2.5 sm:p-3.5"
                   >
-                    {/* Image Container */}
+                    {/* Image / 3D Model Viewport */}
                     <div className="relative aspect-4/3 w-full bg-zinc-100 rounded-lg overflow-hidden">
-                      <img 
-                        src={product.imageUrl} 
-                        alt={product.name}
-                        className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
-                      />
+                      {product.has3DModel && product.glbUrl ? (
+                        React.createElement('model-viewer', {
+                          id: `grid-viewer-${product.id}`,
+                          src: product.glbUrl,
+                          poster: product.imageUrl,
+                          alt: product.name,
+                          ar: true,
+                          'ar-modes': "scene-viewer webxr quick-look",
+                          'interaction-prompt': "none",
+                          'camera-controls': true,
+                          'auto-rotate': true,
+                          'shadow-intensity': "1.2",
+                          'exposure': "0.8",
+                          'environment-image': "neutral",
+                          'loading': "eager",
+                          style: { width: "100%", height: "100%", backgroundColor: "transparent" },
+                          class: "w-full h-full object-contain"
+                        })
+                      ) : (
+                        <img 
+                          src={product.imageUrl} 
+                          alt={product.name}
+                          className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+                        />
+                      )}
                       
                       {/* Badge Overlay */}
                       {product.badge && (
-                        <div className="absolute top-1.5 left-1.5 bg-rose-500 text-white text-[8px] sm:text-[9px] font-extrabold uppercase px-1.5 py-0.5 rounded shadow-2xs">
+                        <div className="absolute top-1.5 left-1.5 bg-rose-500 text-white text-[8px] sm:text-[9px] font-extrabold uppercase px-1.5 py-0.5 rounded shadow-2xs z-10 pointer-events-none">
                           {product.badge}
                         </div>
                       )}
@@ -736,7 +756,7 @@ export default function CortaLaFrutaPublicPage() {
                           className="absolute top-1.5 right-1.5 bg-emerald-600 hover:bg-emerald-700 text-white text-[10px] sm:text-[11px] font-extrabold px-2 py-0.5 rounded-lg shadow-md flex items-center gap-1 transition-transform active:scale-95 z-10"
                         >
                           <Box size={13} className="text-white" />
-                          <span>3D</span>
+                          <span>AR 3D</span>
                         </button>
                       )}
                     </div>
@@ -889,13 +909,33 @@ export default function CortaLaFrutaPublicPage() {
                       className="cursor-pointer bg-white rounded-xl sm:rounded-2xl border border-zinc-200/80 overflow-hidden shadow-2xs hover:shadow-md transition-all flex flex-col justify-between group p-2.5 sm:p-3.5"
                     >
                       <div className="relative aspect-4/3 w-full bg-zinc-100 rounded-lg overflow-hidden">
-                        <img 
-                          src={product.imageUrl} 
-                          alt={product.name}
-                          className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
-                        />
+                        {product.has3DModel && product.glbUrl ? (
+                          React.createElement('model-viewer', {
+                            id: `cat-grid-viewer-${product.id}`,
+                            src: product.glbUrl,
+                            poster: product.imageUrl,
+                            alt: product.name,
+                            ar: true,
+                            'ar-modes': "scene-viewer webxr quick-look",
+                            'interaction-prompt': "none",
+                            'camera-controls': true,
+                            'auto-rotate': true,
+                            'shadow-intensity': "1.2",
+                            'exposure': "0.8",
+                            'environment-image': "neutral",
+                            'loading': "eager",
+                            style: { width: "100%", height: "100%", backgroundColor: "transparent" },
+                            class: "w-full h-full object-contain"
+                          })
+                        ) : (
+                          <img 
+                            src={product.imageUrl} 
+                            alt={product.name}
+                            className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+                          />
+                        )}
                         {product.badge && (
-                          <div className={`absolute top-1.5 left-1.5 text-[8px] sm:text-[9px] font-extrabold uppercase px-1.5 py-0.5 rounded shadow-2xs ${
+                          <div className={`absolute top-1.5 left-1.5 text-[8px] sm:text-[9px] font-extrabold uppercase px-1.5 py-0.5 rounded shadow-2xs z-10 pointer-events-none ${
                             product.badgeType === "strawberry" ? "bg-rose-500 text-white" :
                             product.badgeType === "kiwi" ? "bg-emerald-600 text-white" :
                             "bg-amber-500 text-white"
@@ -909,10 +949,10 @@ export default function CortaLaFrutaPublicPage() {
                               e.stopPropagation();
                               setActive3DModal(product);
                             }}
-                            className="absolute top-1.5 right-1.5 bg-white/90 hover:bg-white text-zinc-900 text-[10px] sm:text-[11px] font-bold px-1.5 py-0.5 rounded-md backdrop-blur-xs flex items-center gap-1 shadow-2xs transition-transform active:scale-95"
+                            className="absolute top-1.5 right-1.5 bg-emerald-600 hover:bg-emerald-700 text-white text-[10px] sm:text-[11px] font-extrabold px-2 py-0.5 rounded-lg shadow-md flex items-center gap-1 transition-transform active:scale-95 z-10"
                           >
-                            <Box size={12} className="text-emerald-600" />
-                            <span>3D</span>
+                            <Box size={13} className="text-white" />
+                            <span>AR 3D</span>
                           </button>
                         )}
                       </div>
