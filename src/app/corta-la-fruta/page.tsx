@@ -714,22 +714,32 @@ export default function CortaLaFrutaPublicPage() {
                     {/* Image / 3D Model Viewport */}
                     <div className="relative aspect-4/3 w-full bg-zinc-100 rounded-lg overflow-hidden">
                       {product.has3DModel && product.glbUrl ? (
-                        React.createElement('model-viewer', {
-                          id: `grid-viewer-${product.id}`,
-                          src: product.glbUrl,
-                          alt: product.name,
-                          ar: true,
-                          'ar-modes': "scene-viewer webxr quick-look",
-                          'interaction-prompt': "none",
-                          'camera-controls': true,
-                          'auto-rotate': true,
-                          'shadow-intensity': "1.2",
-                          'exposure': "0.8",
-                          'environment-image': "neutral",
-                          'loading': "eager",
-                          style: { width: "100%", height: "100%", backgroundColor: "transparent" },
-                          class: "w-full h-full object-contain"
-                        })
+                        <div 
+                          className="w-full h-full cursor-grab active:cursor-grabbing"
+                          onClick={(e) => e.stopPropagation()}
+                          onPointerDown={(e) => e.stopPropagation()}
+                        >
+                          {React.createElement('model-viewer', {
+                            id: `grid-viewer-${product.id}`,
+                            src: product.glbUrl,
+                            alt: product.name,
+                            ar: true,
+                            'ar-modes': "scene-viewer webxr quick-look",
+                            'interaction-prompt': "none",
+                            'camera-controls': true,
+                            'auto-rotate': true,
+                            'disable-zoom': true,
+                            'disable-pan': true,
+                            'min-camera-orbit': "auto 0deg auto",
+                            'max-camera-orbit': "auto 90deg auto",
+                            'shadow-intensity': "0",
+                            'exposure': "0.8",
+                            'environment-image': "neutral",
+                            'loading': "eager",
+                            style: { width: "100%", height: "100%", backgroundColor: "transparent" },
+                            class: "w-full h-full object-contain"
+                          })}
+                        </div>
                       ) : (
                         <img 
                           src={product.imageUrl} 
@@ -909,22 +919,32 @@ export default function CortaLaFrutaPublicPage() {
                     >
                       <div className="relative aspect-4/3 w-full bg-zinc-100 rounded-lg overflow-hidden">
                         {product.has3DModel && product.glbUrl ? (
-                          React.createElement('model-viewer', {
-                            id: `cat-grid-viewer-${product.id}`,
-                            src: product.glbUrl,
-                            alt: product.name,
-                            ar: true,
-                            'ar-modes': "scene-viewer webxr quick-look",
-                            'interaction-prompt': "none",
-                            'camera-controls': true,
-                            'auto-rotate': true,
-                            'shadow-intensity': "1.2",
-                            'exposure': "0.8",
-                            'environment-image': "neutral",
-                            'loading': "eager",
-                            style: { width: "100%", height: "100%", backgroundColor: "transparent" },
-                            class: "w-full h-full object-contain"
-                          })
+                          <div 
+                            className="w-full h-full cursor-grab active:cursor-grabbing"
+                            onClick={(e) => e.stopPropagation()}
+                            onPointerDown={(e) => e.stopPropagation()}
+                          >
+                            {React.createElement('model-viewer', {
+                              id: `cat-grid-viewer-${product.id}`,
+                              src: product.glbUrl,
+                              alt: product.name,
+                              ar: true,
+                              'ar-modes': "scene-viewer webxr quick-look",
+                              'interaction-prompt': "none",
+                              'camera-controls': true,
+                              'auto-rotate': true,
+                              'disable-zoom': true,
+                              'disable-pan': true,
+                              'min-camera-orbit': "auto 0deg auto",
+                              'max-camera-orbit': "auto 90deg auto",
+                              'shadow-intensity': "0",
+                              'exposure': "0.8",
+                              'environment-image': "neutral",
+                              'loading': "eager",
+                              style: { width: "100%", height: "100%", backgroundColor: "transparent" },
+                              class: "w-full h-full object-contain"
+                            })}
+                          </div>
                         ) : (
                           <img 
                             src={product.imageUrl} 
@@ -1141,10 +1161,12 @@ export default function CortaLaFrutaPublicPage() {
                 scale: active3DModal.scale ? `${active3DModal.scale} ${active3DModal.scale} ${active3DModal.scale}` : "1 1 1",
                 'camera-controls': true,
                 'auto-rotate': true,
+                'disable-zoom': true,
+                'disable-pan': true,
                 'min-camera-orbit': "auto 0deg auto",
                 'max-camera-orbit': "auto 90deg auto",
-                'shadow-intensity': "1.5",
-                'exposure': "0.7",
+                'shadow-intensity': "0",
+                'exposure': "0.8",
                 'environment-image': "neutral",
                 'loading': "eager",
                 'reveal': "auto",
