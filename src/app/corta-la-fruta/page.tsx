@@ -31,6 +31,9 @@ interface Product {
   badgeType?: "strawberry" | "kiwi" | "banana";
   imageUrl: string;
   has3DModel?: boolean;
+  glbUrl?: string;
+  usdzUrl?: string;
+  scale?: number;
   categoryName?: string;
 }
 
@@ -1068,14 +1071,14 @@ export default function CortaLaFrutaPublicPage() {
         </div>
       )}
 
-      {/* 3D INTERACTIVE MODAL */}
+      {/* 3D INTERACTIVE MODAL WITH REAL AR SYSTEM */}
       {active3DModal && (
-        <div className="fixed inset-0 bg-zinc-900/50 backdrop-blur-xs z-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl w-full max-w-lg overflow-hidden shadow-2xl border border-zinc-200">
+        <div className="fixed inset-0 bg-zinc-950/70 backdrop-blur-xs z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-3xl w-full max-w-lg overflow-hidden shadow-2xl border border-zinc-200 animate-in fade-in zoom-in-95 duration-200">
             <div className="p-4 px-6 border-b border-zinc-200 flex items-center justify-between bg-zinc-50">
               <div className="flex items-center gap-2">
                 <Box size={18} className="text-emerald-600" />
-                <h3 className="font-bold text-base text-zinc-900">Modelo 3D Interactivo</h3>
+                <h3 className="font-bold text-base text-zinc-900">Visor 3D & Realidad Aumentada (AR)</h3>
               </div>
               <button 
                 onClick={() => setActive3DModal(null)}
@@ -1085,21 +1088,44 @@ export default function CortaLaFrutaPublicPage() {
               </button>
             </div>
 
-            <div className="relative h-72 bg-zinc-100 flex flex-col items-center justify-center p-6 text-center">
-              <img 
-                src={active3DModal.imageUrl} 
-                alt={active3DModal.name}
-                className="h-44 object-contain rounded-xl shadow-md border border-white mb-3"
-              />
-              <span className="text-xs bg-zinc-900 text-white px-3 py-1 rounded-full font-bold">
-                Vista 3D 360° Configurada
-              </span>
+            {/* 3D Model Viewport with AR Button */}
+            <div className="relative h-80 bg-gradient-to-b from-zinc-100 to-zinc-50 flex items-center justify-center p-2">
+              {React.createElement('model-viewer', {
+                id: `viewer-${active3DModal.id}`,
+                src: active3DModal.glbUrl || "/uploads/1787369490158-Spicy Ramen.glb",
+                'ios-src': active3DModal.usdzUrl || undefined,
+                alt: `Modelo 3D de ${active3DModal.name}`,
+                ar: true,
+                'ar-modes': "scene-viewer webxr quick-look",
+                'ar-scale': "auto",
+                'interaction-prompt': "none",
+                scale: active3DModal.scale ? `${active3DModal.scale} ${active3DModal.scale} ${active3DModal.scale}` : "1 1 1",
+                'camera-controls': true,
+                'auto-rotate': true,
+                'min-camera-orbit': "auto 0deg auto",
+                'max-camera-orbit': "auto 90deg auto",
+                'shadow-intensity': "1.5",
+                'exposure': "0.7",
+                'environment-image': "neutral",
+                'loading': "eager",
+                'reveal': "auto",
+                style: { width: "100%", height: "100%", backgroundColor: "transparent" },
+                class: "w-full h-full object-contain"
+              },
+                <button
+                  slot="ar-button"
+                  className="absolute bottom-3 right-3 bg-zinc-900 hover:bg-black text-white text-xs font-extrabold px-4 py-2.5 rounded-xl shadow-lg flex items-center gap-2 transition-transform active:scale-95 z-20 border border-zinc-700"
+                >
+                  <Box size={15} className="text-emerald-400" />
+                  <span>Ver en mi mesa (AR)</span>
+                </button>
+              )}
             </div>
 
             <div className="p-6">
               <div className="flex justify-between items-start mb-2">
-                <h4 className="font-bold text-lg text-zinc-900">{active3DModal.name}</h4>
-                <span className="font-mono font-extrabold text-base text-zinc-900 bg-amber-100 px-2.5 py-1 rounded-lg">
+                <h4 className="font-extrabold text-lg text-zinc-900">{active3DModal.name}</h4>
+                <span className="font-mono font-extrabold text-base text-rose-600 bg-rose-50 border border-rose-100 px-3 py-1 rounded-xl">
                   ${active3DModal.price.toLocaleString("es-AR")}
                 </span>
               </div>
@@ -1110,7 +1136,7 @@ export default function CortaLaFrutaPublicPage() {
               <div className="flex items-center gap-3">
                 <button 
                   onClick={() => setActive3DModal(null)}
-                  className="w-1/2 py-2.5 rounded-xl border border-zinc-200 text-xs font-bold text-zinc-600 hover:bg-zinc-100 transition-colors"
+                  className="w-1/2 py-3 rounded-xl border border-zinc-200 text-xs font-bold text-zinc-600 hover:bg-zinc-100 transition-colors"
                 >
                   Cerrar
                 </button>
@@ -1119,10 +1145,10 @@ export default function CortaLaFrutaPublicPage() {
                     addToCart(active3DModal);
                     setActive3DModal(null);
                   }}
-                  className="w-1/2 py-2.5 rounded-xl bg-rose-500 hover:bg-rose-600 text-white font-bold text-xs transition-colors flex items-center justify-center gap-2 shadow-2xs"
+                  className="w-1/2 py-3 rounded-xl bg-rose-500 hover:bg-rose-600 text-white font-extrabold text-xs transition-colors flex items-center justify-center gap-2 shadow-sm"
                 >
                   <Plus size={16} />
-                  <span>Agregar al Carrito</span>
+                  <span>Agregar al Pedido</span>
                 </button>
               </div>
             </div>
