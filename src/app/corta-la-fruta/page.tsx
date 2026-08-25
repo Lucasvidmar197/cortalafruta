@@ -66,7 +66,8 @@ const categoriesCatalog: Category[] = [
         badge: "Más Vendido", 
         badgeType: "strawberry",
         imageUrl: "https://images.unsplash.com/photo-1587049352847-4a222e784d38?auto=format&fit=crop&w=600&q=80",
-        has3DModel: true 
+        has3DModel: true,
+        glbUrl: "/uploads/fruit-cheese-platter.glb"
       },
       { 
         id: "p2", 
@@ -76,7 +77,8 @@ const categoriesCatalog: Category[] = [
         badge: "Fresco", 
         badgeType: "kiwi",
         imageUrl: "https://images.unsplash.com/photo-1546069901-ba9599a7e63c?auto=format&fit=crop&w=600&q=80",
-        has3DModel: true 
+        has3DModel: true,
+        glbUrl: "/uploads/halloween-fruit-platter.glb"
       }
     ]
   },
@@ -92,7 +94,8 @@ const categoriesCatalog: Category[] = [
         description: "Manzana, banana, naranja, uva y durazno servidos en jugo natural de estación.", 
         price: 3500,
         imageUrl: "https://images.unsplash.com/photo-1519996529931-28324d5a630e?auto=format&fit=crop&w=600&q=80",
-        has3DModel: true
+        has3DModel: true,
+        glbUrl: "/uploads/fruit-cheese-platter.glb"
       },
       { 
         id: "p4", 
@@ -102,7 +105,8 @@ const categoriesCatalog: Category[] = [
         badge: "Recomendado", 
         badgeType: "banana",
         imageUrl: "/products/especial-corta-la-fruta.png",
-        has3DModel: true 
+        has3DModel: true,
+        glbUrl: "/uploads/halloween-fruit-platter.glb"
       }
     ]
   },
