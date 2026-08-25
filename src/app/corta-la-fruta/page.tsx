@@ -59,6 +59,17 @@ const categoriesCatalog: Category[] = [
     theme: "strawberry",
     items: [
       { 
+        id: "p4", 
+        name: "Especial Corta la Fruta 3D", 
+        description: "Nuestra especialidad de la casa enriquecida con kiwi, frutilla fresca, arándanos y frutas de estación. ¡Disponible en Realidad Aumentada 3D!", 
+        price: 4200, 
+        badge: "★ Destacado 3D", 
+        badgeType: "strawberry",
+        imageUrl: "/products/especial-corta-la-fruta.png",
+        has3DModel: true,
+        glbUrl: "/uploads/halloween-fruit-platter.glb"
+      },
+      { 
         id: "p1", 
         name: "Vaso Sandía & Melón", 
         description: "Cortes frescos de sandía dulce y melón en su punto justo de maduración.", 
@@ -93,17 +104,6 @@ const categoriesCatalog: Category[] = [
         price: 3500,
         imageUrl: "https://images.unsplash.com/photo-1519996529931-28324d5a630e?auto=format&fit=crop&w=600&q=80",
         has3DModel: false
-      },
-      { 
-        id: "p4", 
-        name: "Especial Corta la Fruta", 
-        description: "Nuestra ensalada tradicional enriquecida con kiwi, frutilla fresca y arándanos.", 
-        price: 4200, 
-        badge: "Recomendado", 
-        badgeType: "banana",
-        imageUrl: "/products/especial-corta-la-fruta.png",
-        has3DModel: true,
-        glbUrl: "/uploads/halloween-fruit-platter.glb"
       }
     ]
   },
