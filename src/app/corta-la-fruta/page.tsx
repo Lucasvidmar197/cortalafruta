@@ -66,8 +66,7 @@ const categoriesCatalog: Category[] = [
         badge: "Más Vendido", 
         badgeType: "strawberry",
         imageUrl: "https://images.unsplash.com/photo-1587049352847-4a222e784d38?auto=format&fit=crop&w=600&q=80",
-        has3DModel: true,
-        glbUrl: "/uploads/fruit-cheese-platter.glb"
+        has3DModel: false
       },
       { 
         id: "p2", 
@@ -77,8 +76,7 @@ const categoriesCatalog: Category[] = [
         badge: "Fresco", 
         badgeType: "kiwi",
         imageUrl: "https://images.unsplash.com/photo-1546069901-ba9599a7e63c?auto=format&fit=crop&w=600&q=80",
-        has3DModel: true,
-        glbUrl: "/uploads/halloween-fruit-platter.glb"
+        has3DModel: false
       }
     ]
   },
@@ -94,8 +92,7 @@ const categoriesCatalog: Category[] = [
         description: "Manzana, banana, naranja, uva y durazno servidos en jugo natural de estación.", 
         price: 3500,
         imageUrl: "https://images.unsplash.com/photo-1519996529931-28324d5a630e?auto=format&fit=crop&w=600&q=80",
-        has3DModel: true,
-        glbUrl: "/uploads/fruit-cheese-platter.glb"
+        has3DModel: false
       },
       { 
         id: "p4", 
@@ -124,7 +121,7 @@ const categoriesCatalog: Category[] = [
         badge: "Favorito", 
         badgeType: "strawberry",
         imageUrl: "https://images.unsplash.com/photo-1488477181946-6428a0291777?auto=format&fit=crop&w=600&q=80",
-        has3DModel: true 
+        has3DModel: false 
       },
       { 
         id: "p6", 
@@ -156,7 +153,7 @@ const categoriesCatalog: Category[] = [
         description: "Avena suave con cacao amargo, rodajas de banana y mantequilla de maní.", 
         price: 4000,
         imageUrl: "https://images.unsplash.com/photo-1538356828944-091a54a20c6c?auto=format&fit=crop&w=600&q=80",
-        has3DModel: true
+        has3DModel: false
       }
     ]
   },
@@ -172,7 +169,7 @@ const categoriesCatalog: Category[] = [
         description: "Bandeja profesional con fruta de estación troceada y lista para servir.", 
         price: 35000,
         imageUrl: "https://images.unsplash.com/photo-1615485290382-441e4d049cb5?auto=format&fit=crop&w=600&q=80",
-        has3DModel: true
+        has3DModel: false
       },
       { 
         id: "p10", 
