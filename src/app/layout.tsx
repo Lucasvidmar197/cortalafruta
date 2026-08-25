@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { Plus_Jakarta_Sans } from "next/font/google";
+import Script from "next/script";
 import "./globals.css";
 
 const plusJakartaSans = Plus_Jakarta_Sans({ 
@@ -31,7 +32,11 @@ export default function RootLayout({
   return (
     <html lang="es">
       <head>
-        <script type="module" src="https://ajax.googleapis.com/ajax/libs/model-viewer/4.0.0/model-viewer.min.js" async></script>
+        <Script 
+          type="module" 
+          src="https://ajax.googleapis.com/ajax/libs/model-viewer/4.0.0/model-viewer.min.js" 
+          strategy="beforeInteractive"
+        />
       </head>
       <body className={`${plusJakartaSans.variable} font-sans bg-[#FAF9F6] text-zinc-900 min-h-screen selection:bg-rose-500 selection:text-white`}>
         {children}

@@ -733,9 +733,9 @@ export default function CortaLaFrutaPublicPage() {
                             e.stopPropagation();
                             setActive3DModal(product);
                           }}
-                          className="absolute top-1.5 right-1.5 bg-white/90 hover:bg-white text-zinc-900 text-[10px] sm:text-[11px] font-bold px-1.5 py-0.5 rounded-md backdrop-blur-xs flex items-center gap-1 shadow-2xs transition-transform active:scale-95"
+                          className="absolute top-1.5 right-1.5 bg-emerald-600 hover:bg-emerald-700 text-white text-[10px] sm:text-[11px] font-extrabold px-2 py-0.5 rounded-lg shadow-md flex items-center gap-1 transition-transform active:scale-95 z-10"
                         >
-                          <Box size={12} className="text-emerald-600" />
+                          <Box size={13} className="text-white" />
                           <span>3D</span>
                         </button>
                       )}
@@ -1094,6 +1094,7 @@ export default function CortaLaFrutaPublicPage() {
               {React.createElement('model-viewer', {
                 id: `viewer-${active3DModal.id}`,
                 src: active3DModal.glbUrl || "/uploads/1787369490158-Spicy Ramen.glb",
+                poster: active3DModal.imageUrl,
                 'ios-src': active3DModal.usdzUrl || undefined,
                 alt: `Modelo 3D de ${active3DModal.name}`,
                 ar: true,
