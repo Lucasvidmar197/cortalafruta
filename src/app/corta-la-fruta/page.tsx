@@ -46,8 +46,10 @@ interface Category {
 }
 
 interface CartItem {
+  id?: string;
   product: Product;
   quantity: number;
+  notes?: string;
 }
 
 // Initial catalog dataset
@@ -326,7 +328,29 @@ export default function CortaLaFrutaPublicPage() {
   const [cart, setCart] = useState<CartItem[]>([]);
   const [isCartOpen, setIsCartOpen] = useState<boolean>(false);
   const [orderNotes, setOrderNotes] = useState<string>("");
+  const [modalNote, setModalNote] = useState<string>("");
   const [toastMessage, setToastMessage] = useState<string | null>(null);
+
+  // Restore saved order notes from localStorage
+  useEffect(() => {
+    try {
+      const savedNotes = localStorage.getItem("cortalafruta_notes");
+      if (savedNotes) {
+        setOrderNotes(savedNotes);
+      }
+    } catch {
+      // ignore
+    }
+  }, []);
+
+  const handleOrderNotesChange = (val: string) => {
+    setOrderNotes(val);
+    try {
+      localStorage.setItem("cortalafruta_notes", val);
+    } catch {
+      // ignore
+    }
+  };
 
   // Reset page when category or search query changes
   useEffect(() => {
@@ -360,45 +384,67 @@ export default function CortaLaFrutaPublicPage() {
   );
 
   // Cart helper functions
-  const addToCart = (product: Product) => {
+  const addToCart = (product: Product, itemNotes?: string) => {
+    const cleanNote = itemNotes?.trim() || "";
     setCart((prevCart) => {
-      const existing = prevCart.find(item => item.product.id === product.id);
+      const existing = prevCart.find(
+        (item) => item.product.id === product.id && (item.notes || "") === cleanNote
+      );
       if (existing) {
-        return prevCart.map(item => 
-          item.product.id === product.id 
-            ? { ...item, quantity: item.quantity + 1 }
-            : item
+        return prevCart.map((item) =>
+          item === existing ? { ...item, quantity: item.quantity + 1 } : item
         );
       }
-      return [...prevCart, { product, quantity: 1 }];
+      const cartItemId = `${product.id}-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
+      return [...prevCart, { id: cartItemId, product, quantity: 1, notes: cleanNote || undefined }];
     });
 
     setToastMessage(`¡${product.name} agregado al pedido!`);
     setTimeout(() => setToastMessage(null), 2500);
   };
 
-  const updateQuantity = (productId: string, delta: number) => {
+  const updateQuantity = (cartItemIdOrProductId: string, delta: number) => {
     setCart((prevCart) => {
-      return prevCart
-        .map(item => {
-          if (item.product.id === productId) {
-            const newQty = item.quantity + delta;
-            return newQty > 0 ? { ...item, quantity: newQty } : null;
-          }
-          return item;
-        })
-        .filter(Boolean) as CartItem[];
+      // 1. Try matching by unique item ID
+      const byCartId = prevCart.find(item => item.id === cartItemIdOrProductId);
+      if (byCartId) {
+        return prevCart
+          .map(item => {
+            if (item.id === cartItemIdOrProductId) {
+              const newQty = item.quantity + delta;
+              return newQty > 0 ? { ...item, quantity: newQty } : null;
+            }
+            return item;
+          })
+          .filter(Boolean) as CartItem[];
+      }
+
+      // 2. Fallback: match by product ID (e.g. from catalog card buttons)
+      const byProductId = prevCart.find(item => item.product.id === cartItemIdOrProductId);
+      if (byProductId) {
+        return prevCart
+          .map(item => {
+            if (item.id === byProductId.id) {
+              const newQty = item.quantity + delta;
+              return newQty > 0 ? { ...item, quantity: newQty } : null;
+            }
+            return item;
+          })
+          .filter(Boolean) as CartItem[];
+      }
+
+      return prevCart;
     });
   };
 
-  const removeFromCart = (productId: string) => {
-    setCart((prevCart) => prevCart.filter(item => item.product.id !== productId));
+  const removeFromCart = (cartItemIdOrProductId: string) => {
+    setCart((prevCart) => prevCart.filter(item => item.id !== cartItemIdOrProductId && item.product.id !== cartItemIdOrProductId));
   };
 
   const totalCartCount = cart.reduce((sum, item) => sum + item.quantity, 0);
   const totalCartPrice = cart.reduce((sum, item) => sum + (item.product.price * item.quantity), 0);
 
-  // Generate WhatsApp Order Link
+  // Generate WhatsApp Order Link (Direct API & Bulletproof formatting)
   const handleWhatsAppCheckout = () => {
     if (cart.length === 0) return;
 
@@ -407,18 +453,36 @@ export default function CortaLaFrutaPublicPage() {
     cart.forEach(item => {
       const lineTotal = item.product.price * item.quantity;
       message += `• *${item.quantity}x ${item.product.name}* — $${lineTotal.toLocaleString("es-AR")}\n`;
+      if (item.notes && item.notes.trim()) {
+        message += `   ↳ _Aclaración: ${item.notes.trim()}_\n`;
+      }
     });
 
     message += `\n💰 *Total del pedido: $${totalCartPrice.toLocaleString("es-AR")}*`;
 
-    if (orderNotes.trim()) {
-      message += `\n📝 *Notas / Aclaraciones:* ${orderNotes.trim()}`;
+    const cleanNotes = orderNotes.trim();
+    if (cleanNotes) {
+      message += `\n\n📝 *NOTAS / ACLARACIONES DEL PEDIDO:*\n${cleanNotes}`;
     }
 
     message += `\n\nQuedo a la espera de la confirmación. ¡Muchas gracias!`;
 
     const encodedMessage = encodeURIComponent(message);
-    window.open(`https://wa.me/5491124735186?text=${encodedMessage}`, "_blank");
+    const phone = "5491124735186";
+    const directApiUrl = `https://api.whatsapp.com/send/?phone=${phone}&text=${encodedMessage}`;
+
+    // Reliable link trigger across mobile (Safari/Chrome) and desktop
+    try {
+      const link = document.createElement("a");
+      link.href = directApiUrl;
+      link.target = "_blank";
+      link.rel = "noopener noreferrer";
+      document.body.appendChild(link);
+      link.click();
+      setTimeout(() => link.remove(), 100);
+    } catch {
+      window.location.href = directApiUrl;
+    }
   };
 
   return (
@@ -708,7 +772,10 @@ export default function CortaLaFrutaPublicPage() {
                 return (
                   <div 
                     key={product.id}
-                    onClick={() => setSelectedProduct(product)}
+                    onClick={() => {
+                      setSelectedProduct(product);
+                      setModalNote("");
+                    }}
                     className="cursor-pointer bg-white rounded-xl sm:rounded-2xl border border-zinc-200/80 overflow-hidden shadow-2xs hover:shadow-md transition-all flex flex-col justify-between group p-2.5 sm:p-3.5"
                   >
                     {/* Image / 3D Model Viewport */}
@@ -917,7 +984,10 @@ export default function CortaLaFrutaPublicPage() {
                   return (
                     <div 
                       key={product.id}
-                      onClick={() => setSelectedProduct(product)}
+                      onClick={() => {
+                        setSelectedProduct(product);
+                        setModalNote("");
+                      }}
                       className="cursor-pointer bg-white rounded-xl sm:rounded-2xl border border-zinc-200/80 overflow-hidden shadow-2xs hover:shadow-md transition-all flex flex-col justify-between group p-2.5 sm:p-3.5"
                     >
                       <div className="relative aspect-4/3 w-full bg-zinc-100 rounded-lg overflow-hidden">
@@ -1095,7 +1165,10 @@ export default function CortaLaFrutaPublicPage() {
               
               {/* Close Button */}
               <button 
-                onClick={() => setSelectedProduct(null)}
+                onClick={() => {
+                  setSelectedProduct(null);
+                  setModalNote("");
+                }}
                 className="absolute top-3 right-3 w-9 h-9 rounded-full bg-black/60 hover:bg-black text-white flex items-center justify-center backdrop-blur-md transition-all shadow-md"
               >
                 <X size={18} />
@@ -1134,6 +1207,20 @@ export default function CortaLaFrutaPublicPage() {
                 </p>
               </div>
 
+              {/* Item Clarification / Note Input */}
+              <div className="bg-amber-50/60 rounded-2xl p-3.5 border border-amber-200/80 space-y-1.5">
+                <label className="text-[10px] font-extrabold uppercase tracking-wider text-amber-900 flex items-center gap-1.5">
+                  <span>📝</span> Aclaración para este producto (opcional)
+                </label>
+                <input
+                  type="text"
+                  value={modalNote}
+                  onChange={(e) => setModalNote(e.target.value)}
+                  placeholder="Ej: Sin kiwi, cambiar durazno por frutilla..."
+                  className="w-full bg-white border border-amber-200 focus:border-amber-500 rounded-xl px-3 py-2 text-xs text-zinc-800 placeholder:text-zinc-400 outline-none transition-colors"
+                />
+              </div>
+
               {/* Action Buttons */}
               <div className="flex items-center gap-2 pt-2">
                 {selectedProduct.has3DModel && (
@@ -1141,6 +1228,7 @@ export default function CortaLaFrutaPublicPage() {
                     onClick={() => {
                       const prod = selectedProduct;
                       setSelectedProduct(null);
+                      setModalNote("");
                       setActive3DModal(prod);
                     }}
                     className="py-3 px-3.5 rounded-xl border border-zinc-200 bg-white hover:bg-zinc-100 text-zinc-800 text-xs font-bold flex items-center gap-1.5 transition-colors shrink-0 shadow-2xs"
@@ -1152,8 +1240,9 @@ export default function CortaLaFrutaPublicPage() {
 
                 <button
                   onClick={() => {
-                    addToCart(selectedProduct);
+                    addToCart(selectedProduct, modalNote);
                     setSelectedProduct(null);
+                    setModalNote("");
                   }}
                   className="flex-1 py-3.5 px-4 rounded-xl bg-rose-500 hover:bg-rose-600 text-white font-extrabold text-xs sm:text-sm transition-all flex items-center justify-center gap-2 shadow-md"
                 >
@@ -1294,62 +1383,87 @@ export default function CortaLaFrutaPublicPage() {
                 </div>
               ) : (
                 <>
-                  {cart.map(({ product, quantity }) => (
-                    <div 
-                      key={product.id}
-                      className="flex items-center gap-3 p-3.5 rounded-xl border border-zinc-200/80 bg-white shadow-2xs"
-                    >
-                      <img 
-                        src={product.imageUrl} 
-                        alt={product.name}
-                        className="w-16 h-16 rounded-lg object-cover bg-zinc-100 shrink-0"
-                      />
-                      <div className="flex-1 min-w-0">
-                        <h4 className="font-bold text-sm text-zinc-900 truncate">{product.name}</h4>
-                        <span className="text-xs font-mono font-extrabold text-rose-600">
-                          ${(product.price * quantity).toLocaleString("es-AR")}
-                        </span>
-                        
-                        <div className="flex items-center gap-2 mt-2">
-                          <div className="flex items-center gap-1.5 bg-zinc-100 rounded-lg p-0.5">
-                            <button
-                              onClick={() => updateQuantity(product.id, -1)}
-                              className="w-6 h-6 rounded bg-white text-zinc-700 flex items-center justify-center font-bold text-xs shadow-2xs hover:bg-zinc-200"
-                            >
-                              <Minus size={12} />
-                            </button>
-                            <span className="text-xs font-bold px-2">{quantity}</span>
-                            <button
-                              onClick={() => updateQuantity(product.id, 1)}
-                              className="w-6 h-6 rounded bg-white text-zinc-700 flex items-center justify-center font-bold text-xs shadow-2xs hover:bg-zinc-200"
-                            >
-                              <Plus size={12} />
-                            </button>
-                          </div>
-                        </div>
-                      </div>
+                  {cart.map((item) => {
+                    const { product, quantity, notes } = item;
+                    const itemKey = item.id || product.id;
 
-                      <button
-                        onClick={() => removeFromCart(product.id)}
-                        className="p-2 text-zinc-400 hover:text-rose-600 transition-colors rounded-lg hover:bg-rose-50"
-                        title="Eliminar producto"
+                    return (
+                      <div 
+                        key={itemKey}
+                        className="p-3.5 rounded-xl border border-zinc-200/80 bg-white shadow-2xs space-y-2"
                       >
-                        <Trash2 size={16} />
-                      </button>
-                    </div>
-                  ))}
+                        <div className="flex items-center gap-3">
+                          <img 
+                            src={product.imageUrl} 
+                            alt={product.name}
+                            className="w-16 h-16 rounded-lg object-cover bg-zinc-100 shrink-0"
+                          />
+                          <div className="flex-1 min-w-0">
+                            <h4 className="font-bold text-sm text-zinc-900 truncate">{product.name}</h4>
+                            <span className="text-xs font-mono font-extrabold text-rose-600">
+                              ${(product.price * quantity).toLocaleString("es-AR")}
+                            </span>
+                            
+                            <div className="flex items-center gap-2 mt-2">
+                              <div className="flex items-center gap-1.5 bg-zinc-100 rounded-lg p-0.5">
+                                <button
+                                  onClick={() => updateQuantity(itemKey, -1)}
+                                  className="w-6 h-6 rounded bg-white text-zinc-700 flex items-center justify-center font-bold text-xs shadow-2xs hover:bg-zinc-200"
+                                >
+                                  <Minus size={12} />
+                                </button>
+                                <span className="text-xs font-bold px-2">{quantity}</span>
+                                <button
+                                  onClick={() => updateQuantity(itemKey, 1)}
+                                  className="w-6 h-6 rounded bg-white text-zinc-700 flex items-center justify-center font-bold text-xs shadow-2xs hover:bg-zinc-200"
+                                >
+                                  <Plus size={12} />
+                                </button>
+                              </div>
+                            </div>
+                          </div>
+
+                          <button
+                            onClick={() => removeFromCart(itemKey)}
+                            className="p-2 text-zinc-400 hover:text-rose-600 transition-colors rounded-lg hover:bg-rose-50"
+                            title="Eliminar producto"
+                          >
+                            <Trash2 size={16} />
+                          </button>
+                        </div>
+
+                        {notes && (
+                          <div className="text-[11px] bg-amber-50 text-amber-900 border border-amber-200/80 px-2.5 py-1.5 rounded-lg flex items-start gap-1.5 font-medium">
+                            <span className="font-bold text-amber-800 shrink-0">Nota:</span>
+                            <span className="italic">{notes}</span>
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
 
                   {/* Order Notes */}
-                  <div className="pt-4 border-t border-zinc-100">
-                    <label className="block text-xs font-bold text-zinc-700 mb-1.5">
-                      Notas o aclaraciones para tu pedido:
-                    </label>
+                  <div className="pt-4 border-t border-zinc-100 space-y-2">
+                    <div className="flex items-center justify-between">
+                      <label className="block text-xs font-bold text-zinc-800">
+                        Notas o aclaraciones para tu pedido:
+                      </label>
+                      {orderNotes.trim() && (
+                        <span className="text-[10px] font-extrabold text-emerald-700 bg-emerald-50 border border-emerald-200/80 px-2 py-0.5 rounded-full flex items-center gap-1">
+                          <Check size={11} className="stroke-[3]" />
+                          Incluida en el pedido
+                        </span>
+                      )}
+                    </div>
                     <textarea 
                       value={orderNotes}
-                      onChange={(e) => setOrderNotes(e.target.value)}
-                      placeholder="Ej: Sin endulzante extra, cambiar kiwi por frutilla..."
-                      className="w-full border border-zinc-200 rounded-xl p-3 text-xs outline-none focus:border-rose-500 resize-none h-20 font-sans"
+                      onChange={(e) => handleOrderNotesChange(e.target.value)}
+                      placeholder="Ej: Sin endulzante extra, cambiar kiwi por frutilla, enviar cubiertos..."
+                      className="w-full border border-zinc-200 focus:border-rose-500 rounded-xl p-3 text-xs outline-none resize-none h-20 font-sans transition-colors bg-zinc-50/50 focus:bg-white"
                     />
+                    <p className="text-[10px] text-zinc-400 font-medium">
+                      Esta nota se enviará directamente en el mensaje de WhatsApp a Corta la Fruta.
+                    </p>
                   </div>
                 </>
               )}
