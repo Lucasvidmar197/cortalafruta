@@ -1393,11 +1393,34 @@ export default function CortaLaFrutaPublicPage() {
                         className="p-3.5 rounded-xl border border-zinc-200/80 bg-white shadow-2xs space-y-2"
                       >
                         <div className="flex items-center gap-3">
-                          <img 
-                            src={product.imageUrl} 
-                            alt={product.name}
-                            className="w-16 h-16 rounded-lg object-cover bg-zinc-100 shrink-0"
-                          />
+                          <div className="w-16 h-16 rounded-lg bg-zinc-100 shrink-0 overflow-hidden relative flex items-center justify-center border border-zinc-200/60">
+                            {product.has3DModel && product.glbUrl ? (
+                              <div className="w-full h-full pointer-events-none select-none">
+                                {React.createElement('model-viewer', {
+                                  id: `cart-thumb-${itemKey}`,
+                                  src: product.glbUrl,
+                                  alt: product.name,
+                                  'interaction-prompt': 'none',
+                                  scale: '1 1 1',
+                                  'camera-controls': false,
+                                  'auto-rotate': false,
+                                  'shadow-intensity': '1.5',
+                                  'exposure': '0.7',
+                                  'environment-image': 'neutral',
+                                  'loading': 'eager',
+                                  'reveal': 'auto',
+                                  style: { width: '100%', height: '100%', backgroundColor: 'transparent' },
+                                  class: 'w-full h-full object-contain pointer-events-none'
+                                })}
+                              </div>
+                            ) : (
+                              <img 
+                                src={product.imageUrl} 
+                                alt={product.name}
+                                className="w-full h-full object-cover"
+                              />
+                            )}
+                          </div>
                           <div className="flex-1 min-w-0">
                             <h4 className="font-bold text-sm text-zinc-900 truncate">{product.name}</h4>
                             <span className="text-xs font-mono font-extrabold text-rose-600">
