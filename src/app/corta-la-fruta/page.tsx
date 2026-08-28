@@ -3,9 +3,10 @@
 import React, { useState, useEffect, useRef } from "react";
 import Link from "next/link";
 import Script from "next/script";
+import { supabase } from "@/lib/supabase";
 import { 
   Star, MapPin, Clock, Phone, AtSign, ShoppingBag, Plus, Minus, Trash2, 
-  X, Check, Box, ArrowRight, Sparkles, ChevronRight, ChevronLeft, CheckCircle2, Search
+  X, Check, Box, ArrowRight, Sparkles, ChevronRight, ChevronLeft, CheckCircle2, Search, Loader2
 } from "lucide-react";
 
 // Official WhatsApp Logo Icon
@@ -52,140 +53,99 @@ interface CartItem {
   notes?: string;
 }
 
-// Initial catalog dataset
-const categoriesCatalog: Category[] = [
-  {
-    id: "c1",
-    name: "Vasos de Fruta Cortada",
+// Category visual metadata (subtitles & colors)
+const CATEGORY_META: Record<string, { subtitle: string; theme: "strawberry" | "kiwi" | "banana" }> = {
+  "Vasos de Fruta Cortada": {
     subtitle: "Fruta fresca seleccionada y cortada al momento",
-    theme: "strawberry",
-    items: [
-      { 
-        id: "p4", 
-        name: "Especial Corta la Fruta 3D", 
-        description: "Nuestra especialidad de la casa enriquecida con kiwi, frutilla fresca, arándanos y frutas de estación. ¡Disponible en Realidad Aumentada 3D!", 
-        price: 4200, 
-        badge: "★ Destacado 3D", 
-        badgeType: "strawberry",
-        imageUrl: "/products/especial-corta-la-fruta.png",
-        has3DModel: true,
-        glbUrl: "/uploads/halloween-fruit-platter.glb"
-      },
-      { 
-        id: "p1", 
-        name: "Vaso Sandía & Melón", 
-        description: "Cortes frescos de sandía dulce y melón en su punto justo de maduración.", 
-        price: 2500, 
-        badge: "Más Vendido", 
-        badgeType: "strawberry",
-        imageUrl: "https://images.unsplash.com/photo-1587049352847-4a222e784d38?auto=format&fit=crop&w=600&q=80",
-        has3DModel: false
-      },
-      { 
-        id: "p2", 
-        name: "Vaso Mix Tropical", 
-        description: "Combinación de mango, ananá, kiwi fresco y frutillas de primera calidad.", 
-        price: 3200, 
-        badge: "Fresco", 
-        badgeType: "kiwi",
-        imageUrl: "https://images.unsplash.com/photo-1546069901-ba9599a7e63c?auto=format&fit=crop&w=600&q=80",
-        has3DModel: false
-      }
-    ]
+    theme: "strawberry"
   },
-  {
-    id: "c2",
-    name: "Ensaladas de Frutas",
+  "Ensaladas de Frutas": {
     subtitle: "Preparadas al instante maceradas en jugo 100% natural",
-    theme: "banana",
-    items: [
-      { 
-        id: "p3", 
-        name: "Ensalada Clásica", 
-        description: "Manzana, banana, naranja, uva y durazno servidos en jugo natural de estación.", 
-        price: 3500,
-        imageUrl: "https://images.unsplash.com/photo-1519996529931-28324d5a630e?auto=format&fit=crop&w=600&q=80",
-        has3DModel: false
-      }
-    ]
+    theme: "banana"
   },
-  {
-    id: "c3",
-    name: "Combinaciones con Yogur & Granola",
+  "Combinaciones con Yogur & Granola": {
     subtitle: "Equilibrio ideal entre yogur cremoso, granola horneada y fruta",
-    theme: "kiwi",
-    items: [
-      { 
-        id: "p5", 
-        name: "Yogur con Frutos Rojos", 
-        description: "Yogur natural cremoso, granola horneada artesanal y mix de frutos rojos.", 
-        price: 4500, 
-        badge: "Favorito", 
-        badgeType: "strawberry",
-        imageUrl: "https://images.unsplash.com/photo-1488477181946-6428a0291777?auto=format&fit=crop&w=600&q=80",
-        has3DModel: false 
-      },
-      { 
-        id: "p6", 
-        name: "Yogur Tropical", 
-        description: "Yogur natural, granola de miel, mango maduro y escamas de coco tostado.", 
-        price: 4500,
-        imageUrl: "https://images.unsplash.com/photo-1505253716362-afaea1d3d1af?auto=format&fit=crop&w=600&q=80",
-        has3DModel: false
-      }
-    ]
+    theme: "kiwi"
   },
-  {
-    id: "c4",
-    name: "Avena Trasnochada (Overnight Oats)",
+  "Avena Trasnochada (Overnight Oats)": {
     subtitle: "Avena suave remojada en frío, nutritiva, ligera y saciante",
-    theme: "banana",
-    items: [
-      { 
-        id: "p7", 
-        name: "Oats Manzana & Canela", 
-        description: "Avena en leche de almendras, manzana rallada, trozos de nuez y canela.", 
-        price: 3800,
-        imageUrl: "https://images.unsplash.com/photo-1517673400267-0251440c45dc?auto=format&fit=crop&w=600&q=80",
-        has3DModel: false
-      },
-      { 
-        id: "p8", 
-        name: "Oats Cacao & Banana", 
-        description: "Avena suave con cacao amargo, rodajas de banana y mantequilla de maní.", 
-        price: 4000,
-        imageUrl: "https://images.unsplash.com/photo-1538356828944-091a54a20c6c?auto=format&fit=crop&w=600&q=80",
-        has3DModel: false
-      }
-    ]
+    theme: "banana"
   },
-  {
-    id: "c5",
-    name: "Servicio para Eventos & Reuniones",
+  "Servicio para Eventos & Reuniones": {
     subtitle: "Presentaciones especiales para eventos corporativos y festejos",
-    theme: "strawberry",
-    items: [
-      { 
-        id: "p9", 
-        name: "Bandeja Degustación (10 Personas)", 
-        description: "Bandeja profesional con fruta de estación troceada y lista para servir.", 
-        price: 35000,
-        imageUrl: "https://images.unsplash.com/photo-1615485290382-441e4d049cb5?auto=format&fit=crop&w=600&q=80",
-        has3DModel: false
-      },
-      { 
-        id: "p10", 
-        name: "Pack Infantil Eventos (20 Vasos)", 
-        description: "Vasos individuales pequeños listos para cumpleaños e instancias infantiles.", 
-        price: 45000, 
-        badge: "Ideal Eventos", 
-        badgeType: "kiwi",
-        imageUrl: "https://images.unsplash.com/photo-1601004890684-d8cbf643f5f2?auto=format&fit=crop&w=600&q=80",
-        has3DModel: false
-      }
-    ]
+    theme: "strawberry"
   }
-];
+};
+
+// Transform database rows from Supabase into structured Category objects
+function buildCategoriesFromItems(rawItems: any[]): Category[] {
+  const categoryMap = new Map<string, Product[]>();
+
+  const canonicalOrder = [
+    "Vasos de Fruta Cortada",
+    "Ensaladas de Frutas",
+    "Combinaciones con Yogur & Granola",
+    "Avena Trasnochada (Overnight Oats)",
+    "Servicio para Eventos & Reuniones"
+  ];
+
+  rawItems.forEach((row) => {
+    const catName = row.category || "Otros";
+    if (!categoryMap.has(catName)) {
+      categoryMap.set(catName, []);
+    }
+    
+    categoryMap.get(catName)!.push({
+      id: row.id,
+      name: row.name,
+      description: row.description || "",
+      price: Number(row.price) || 0,
+      badge: row.glburl ? "★ Destacado 3D" : undefined,
+      badgeType: "strawberry",
+      imageUrl: (row.image_urls && row.image_urls[0]) || "/products/especial-corta-la-fruta.png",
+      has3DModel: !!row.glburl,
+      glbUrl: row.glburl || undefined,
+      usdzUrl: row.usdzurl || undefined,
+      scale: row.scale || 1,
+      categoryName: catName,
+    });
+  });
+
+  const categories: Category[] = [];
+  const processedNames = new Set<string>();
+
+  canonicalOrder.forEach((catName, idx) => {
+    if (categoryMap.has(catName)) {
+      const meta = CATEGORY_META[catName] || {
+        subtitle: "Catálogo de productos frescos seleccionados",
+        theme: idx % 3 === 0 ? "strawberry" : idx % 3 === 1 ? "banana" : "kiwi"
+      };
+      categories.push({
+        id: `c_${idx + 1}`,
+        name: catName,
+        subtitle: meta.subtitle,
+        theme: meta.theme,
+        items: categoryMap.get(catName)!
+      });
+      processedNames.add(catName);
+    }
+  });
+
+  let extraIdx = canonicalOrder.length + 1;
+  categoryMap.forEach((items, catName) => {
+    if (!processedNames.has(catName)) {
+      categories.push({
+        id: `c_${extraIdx++}`,
+        name: catName,
+        subtitle: "Catálogo de productos frescos seleccionados",
+        theme: extraIdx % 2 === 0 ? "strawberry" : "kiwi",
+        items
+      });
+    }
+  });
+
+  return categories;
+}
 
 const REVIEWS = [
   {
@@ -246,6 +206,8 @@ function TrustIndexWidget() {
 }
 
 export default function CortaLaFrutaPublicPage() {
+  const [categories, setCategories] = useState<Category[]>([]);
+  const [isLoadingMenu, setIsLoadingMenu] = useState<boolean>(true);
   const [activeCategory, setActiveCategory] = useState<string>("all");
   const [searchQuery, setSearchQuery] = useState<string>("");
   const [currentPage, setCurrentPage] = useState<number>(1);
@@ -253,6 +215,45 @@ export default function CortaLaFrutaPublicPage() {
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
   const [isAboutOpen, setIsAboutOpen] = useState<boolean>(false);
   const [isAboutHighlighted, setIsAboutHighlighted] = useState<boolean>(false);
+
+  // Fetch dynamic menu from Supabase & subscribe to real-time changes
+  useEffect(() => {
+    const fetchMenu = async () => {
+      try {
+        const { data, error } = await supabase
+          .from("menu_items")
+          .select("*")
+          .order("created_at", { ascending: true });
+
+        if (error) throw error;
+        if (data) {
+          setCategories(buildCategoriesFromItems(data));
+        }
+      } catch (err) {
+        console.error("Error al cargar menú desde Supabase:", err);
+      } finally {
+        setIsLoadingMenu(false);
+      }
+    };
+
+    fetchMenu();
+
+    // Subscribe to real-time updates from Supabase
+    const channel = supabase
+      .channel("corta-la-fruta-menu-realtime")
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "menu_items" },
+        () => {
+          fetchMenu();
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, []);
 
   const handleOpenAbout = () => {
     setIsAboutOpen(true);
@@ -358,7 +359,7 @@ export default function CortaLaFrutaPublicPage() {
   }, [activeCategory, searchQuery]);
 
   // Filter Categories & Items based on activeCategory AND searchQuery
-  const filteredCategories = categoriesCatalog
+  const filteredCategories = categories
     .filter(cat => activeCategory === "all" || cat.id === activeCategory)
     .map(category => {
       if (!searchQuery.trim()) return category;
@@ -669,7 +670,7 @@ export default function CortaLaFrutaPublicPage() {
               >
                 Todos los productos
               </button>
-              {categoriesCatalog.map((cat) => (
+              {categories.map((cat) => (
                 <button
                   key={cat.id}
                   onClick={() => setActiveCategory(cat.id)}
@@ -709,7 +710,17 @@ export default function CortaLaFrutaPublicPage() {
 
       {/* PRODUCT CATALOG GRID */}
       <section className="max-w-6xl mx-auto px-4 md:px-6 py-10 space-y-12">
-        {filteredCategories.length === 0 ? (
+        {isLoadingMenu && categories.length === 0 ? (
+          <div className="text-center py-24 bg-white rounded-3xl border border-zinc-200 p-8 space-y-3">
+            <Loader2 size={36} className="mx-auto text-rose-500 animate-spin" />
+            <h4 className="font-extrabold text-base text-zinc-800">
+              Cargando productos frescos...
+            </h4>
+            <p className="text-xs text-zinc-400 max-w-sm mx-auto">
+              Conectando con la base de datos de Corta la Fruta.
+            </p>
+          </div>
+        ) : filteredCategories.length === 0 ? (
           <div className="text-center py-16 bg-white rounded-2xl border border-zinc-200 p-8 space-y-3">
             <Search size={40} className="mx-auto text-zinc-300 stroke-1" />
             <h4 className="font-bold text-base text-zinc-800">
@@ -1781,7 +1792,7 @@ export default function CortaLaFrutaPublicPage() {
               Categorías de Menú
             </h4>
             <ul className="space-y-2.5 text-xs text-zinc-400 font-medium">
-              {categoriesCatalog.map((cat) => (
+              {categories.map((cat) => (
                 <li key={cat.id}>
                   <button 
                     onClick={() => {
