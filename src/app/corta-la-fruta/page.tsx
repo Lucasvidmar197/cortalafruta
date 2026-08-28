@@ -1872,7 +1872,7 @@ export default function CortaLaFrutaPublicPage() {
               </a>
             </span>
             <span>•</span>
-            <Link href="/corta-la-fruta/admin" className="hover:text-amber-400 transition-colors underline underline-offset-4">
+            <Link href="/admin" className="hover:text-amber-400 transition-colors underline underline-offset-4">
               Acceso Panel Admin
             </Link>
           </div>

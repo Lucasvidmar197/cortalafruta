@@ -1,13 +1,38 @@
 "use client";
 
-import { useState, useEffect } from "react";
-import { useRouter } from "next/navigation";
+import React, { useState, useEffect, useRef } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase";
-import { QRCodeSVG } from "qrcode.react";
+import { 
+  Plus, Trash2, Edit2, Save, X, ArrowLeft, Package, Layers, Box, 
+  Image as ImageIcon, Upload, Loader2, LogOut, Check, Sparkles, ExternalLink, Lock 
+} from "lucide-react";
 import { WebIO } from "@gltf-transform/core";
 import { KHRMaterialsUnlit } from "@gltf-transform/extensions";
 
+interface MenuItem {
+  id: string;
+  name: string;
+  description: string;
+  price: number;
+  scale?: number;
+  glburl?: string | null;
+  usdzurl?: string | null;
+  category: string;
+  image_urls?: string[];
+  created_at?: string;
+}
+
+const DEFAULT_CATEGORIES = [
+  "Vasos de Fruta Cortada",
+  "Ensaladas de Frutas",
+  "Combinaciones con Yogur & Granola",
+  "Avena Trasnochada (Overnight Oats)",
+  "Servicio para Eventos & Reuniones"
+];
+
+// Helper: Optimizar modelo GLB para Realidad Aumentada inyectando KHR_materials_unlit
 const processGlbUnlit = async (file: File): Promise<Blob> => {
   try {
     const io = new WebIO().registerExtensions([KHRMaterialsUnlit]);
@@ -17,23 +42,26 @@ const processGlbUnlit = async (file: File): Promise<Blob> => {
     const unlit = unlitExtension.createUnlit();
     
     for (const material of doc.getRoot().listMaterials()) {
-      material.setExtension('KHR_materials_unlit', unlit);
+      material.setExtension("KHR_materials_unlit", unlit);
       material.setMetallicFactor(0);
       material.setRoughnessFactor(1);
     }
     
     const modifiedBuffer = await io.writeBinary(doc);
-    return new Blob([modifiedBuffer], { type: 'model/gltf-binary' });
+    return new Blob([modifiedBuffer], { type: "model/gltf-binary" });
   } catch (err) {
-    console.warn("Could not inject unlit on client, using original file:", err);
+    console.warn("No se pudo inyectar unlit, usando archivo original:", err);
     return file;
   }
 };
 
-const uploadToSupabase = async (file: File | Blob, originalName: string, contentType: string) => {
-  const fileName = `${Date.now()}-${originalName.replace(/\s+/g, '_')}`;
-  const { data, error } = await supabase.storage
-    .from('menu-assets')
+// Helper: Subir archivo a Supabase Storage bucket 'menu-assets'
+const uploadFileToSupabase = async (file: File | Blob, originalName: string, contentType: string, folder: string = "products"): Promise<string> => {
+  const cleanOriginal = originalName.replace(/[^a-zA-Z0-9._-]/g, "_");
+  const fileName = `${folder}/${Date.now()}-${cleanOriginal}`;
+  
+  const { error } = await supabase.storage
+    .from("menu-assets")
     .upload(fileName, file, {
       contentType: contentType,
       upsert: false,
@@ -42,108 +70,141 @@ const uploadToSupabase = async (file: File | Blob, originalName: string, content
   if (error) throw error;
 
   const { data: publicUrlData } = supabase.storage
-    .from('menu-assets')
+    .from("menu-assets")
     .getPublicUrl(fileName);
 
   return publicUrlData.publicUrl;
 };
 
-export default function AdminPage() {
+export default function CortaLaFrutaAdminPage() {
   const router = useRouter();
-  const [loading, setLoading] = useState(false);
-  const [isAuthenticated, setIsAuthenticated] = useState(false);
-  const [password, setPassword] = useState("");
+  
+  // Auth state
+  const [isAuthenticated, setIsAuthenticated] = useState<boolean>(false);
+  const [isCheckingAuth, setIsCheckingAuth] = useState<boolean>(true);
   const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
   const [authError, setAuthError] = useState("");
-  const [activeTab, setActiveTab] = useState<"cocina" | "menu" | "salon" | "caja">("cocina");
-  
-  // Billing States
-  const [billingTable, setBillingTable] = useState<any>(null);
-  const [customChargeName, setCustomChargeName] = useState("");
-  const [customChargePrice, setCustomChargePrice] = useState("");
-  const [paymentMethod, setPaymentMethod] = useState("Efectivo");
+  const [isSubmittingAuth, setIsSubmittingAuth] = useState(false);
 
-  // Realtime States
-  const [orders, setOrders] = useState<any[]>([]);
-  const [requests, setRequests] = useState<any[]>([]);
-  const [menuItems, setMenuItems] = useState<any[]>([]);
-  const [tables, setTables] = useState<any[]>([]);
-  
-  // Modals States
-  const [editingOrder, setEditingOrder] = useState<any>(null);
-  const [editingMenuItem, setEditingMenuItem] = useState<any>(null);
-  
-  // Salon States
-  const [searchTable, setSearchTable] = useState("");
-  const [editingTable, setEditingTable] = useState<any>(null);
-  const [printingTable, setPrintingTable] = useState<any>(null);
+  // Menu data state
+  const [items, setItems] = useState<MenuItem[]>([]);
+  const [categoriesList, setCategoriesList] = useState<string[]>(DEFAULT_CATEGORIES);
+  const [isLoadingMenu, setIsLoadingMenu] = useState<boolean>(false);
+  const [toastMessage, setToastMessage] = useState<string | null>(null);
 
-  const fetchData = async () => {
-    const { data: ordersData } = await supabase.from('orders').select('*').order('created_at', { ascending: false });
-    const { data: reqData } = await supabase.from('service_requests').select('*').order('created_at', { ascending: false });
-    const { data: menuData } = await supabase.from('menu_items').select('*').order('created_at', { ascending: true });
-    const { data: tablesData } = await supabase.from('tables').select('*').order('name', { ascending: true });
-    
-    if (ordersData) setOrders(ordersData);
-    if (reqData) setRequests(reqData);
-    if (menuData) {
-      setMenuItems(menuData.map(item => ({
-        ...item,
-        glbUrl: item.glburl,
-        usdzUrl: item.usdzurl,
-        imageUrls: item.image_urls || [],
-      })));
+  // Category editing state
+  const [editingCategoryOldName, setEditingCategoryOldName] = useState<string | null>(null);
+  const [editingCategoryNewName, setEditingCategoryNewName] = useState<string>("");
+  const [isAddingCategory, setIsAddingCategory] = useState<boolean>(false);
+  const [newCategoryName, setNewCategoryName] = useState<string>("");
+
+  // Product modal state
+  const [editingProduct, setEditingProduct] = useState<{
+    id: string | null;
+    name: string;
+    description: string;
+    price: number;
+    category: string;
+    imageUrl: string;
+    glbUrl: string;
+    has3D: boolean;
+  } | null>(null);
+
+  // File upload states inside product modal
+  const [isUploadingImage, setIsUploadingImage] = useState(false);
+  const [isUploadingGlb, setIsUploadingGlb] = useState(false);
+  const imageInputRef = useRef<HTMLInputElement>(null);
+  const glbInputRef = useRef<HTMLInputElement>(null);
+
+  const showToast = (msg: string) => {
+    setToastMessage(msg);
+    setTimeout(() => setToastMessage(null), 3000);
+  };
+
+  // 1. Check existing Supabase auth session on mount
+  useEffect(() => {
+    const checkSession = async () => {
+      try {
+        const { data: { session } } = await supabase.auth.getSession();
+        if (session) {
+          setIsAuthenticated(true);
+        }
+      } catch (err) {
+        console.error("Error comprobando sesión:", err);
+      } finally {
+        setIsCheckingAuth(false);
+      }
+    };
+    checkSession();
+
+    const { data: authListener } = supabase.auth.onAuthStateChange((_event, session) => {
+      setIsAuthenticated(!!session);
+    });
+
+    return () => {
+      authListener.subscription.unsubscribe();
+    };
+  }, []);
+
+  // 2. Fetch menu items from Supabase when authenticated
+  const fetchMenuData = async () => {
+    setIsLoadingMenu(true);
+    try {
+      const { data, error } = await supabase
+        .from("menu_items")
+        .select("*")
+        .order("created_at", { ascending: true });
+
+      if (error) throw error;
+
+      if (data) {
+        const mappedItems: MenuItem[] = data.map((item: any) => ({
+          ...item,
+          glburl: item.glburl || null,
+          image_urls: item.image_urls || [],
+        }));
+        setItems(mappedItems);
+
+        // Compute unique categories combining defaults and database items
+        const itemCategories = Array.from(new Set(mappedItems.map(i => i.category).filter(Boolean)));
+        const combined = Array.from(new Set([...DEFAULT_CATEGORIES, ...itemCategories]));
+        setCategoriesList(combined);
+      }
+    } catch (err: any) {
+      console.error("Error al cargar menú de Supabase:", err);
+      showToast("Error al conectar con Supabase: " + (err.message || "revisá la conexión"));
+    } finally {
+      setIsLoadingMenu(false);
     }
-    if (tablesData) setTables(tablesData);
   };
 
   useEffect(() => {
-    const checkSession = async () => {
-      const { data: { session } } = await supabase.auth.getSession();
-      if (session) setIsAuthenticated(true);
-    };
-    checkSession();
-  }, []);
-
-  useEffect(() => {
-    if (!isAuthenticated) return;
-    fetchData();
-
-    // Intentamos usar Realtime
-    const channel = supabase
-      .channel('schema-db-changes')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'orders' }, () => fetchData())
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'service_requests' }, () => fetchData())
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'menu_items' }, () => fetchData())
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'tables' }, () => fetchData())
-      .subscribe();
-
-    // PLAN B: Recargar automáticamente cada 3 segundos por si Realtime no está activado en Supabase
-    const intervalId = setInterval(() => {
-      fetchData();
-    }, 3000);
-
-    return () => {
-      supabase.removeChannel(channel);
-      clearInterval(intervalId);
-    };
+    if (isAuthenticated) {
+      fetchMenuData();
+    }
   }, [isAuthenticated]);
 
+  // Auth handler
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
-    setLoading(true);
+    setIsSubmittingAuth(true);
     setAuthError("");
-    
-    const { data, error } = await supabase.auth.signInWithPassword({
-      email,
-      password,
-    });
-    
-    setLoading(false);
-    if (error) {
-      setAuthError("Correo o contraseña incorrectos");
-    } else {
-      setIsAuthenticated(true);
+
+    try {
+      const { data, error } = await supabase.auth.signInWithPassword({
+        email: email.trim(),
+        password: password.trim(),
+      });
+
+      if (error) throw error;
+      if (data.session) {
+        setIsAuthenticated(true);
+      }
+    } catch (err: any) {
+      setAuthError(err.message || "Correo o contraseña incorrectos");
+    } finally {
+      setIsSubmittingAuth(false);
     }
   };
 
@@ -152,883 +213,854 @@ export default function AdminPage() {
     setIsAuthenticated(false);
   };
 
-  // =========================================================================
-  // COCINA Y SALON LOGIC
-  // =========================================================================
-
-  const updateOrderStatus = async (id: string, newStatus: string) => {
-    await supabase.from('orders').update({ status: newStatus }).eq('id', id);
-    fetchData(); // Recarga instantánea
+  // Category Actions
+  const handleCreateCategory = () => {
+    const trimmed = newCategoryName.trim();
+    if (!trimmed) return;
+    if (categoriesList.includes(trimmed)) {
+      alert("Esta categoría ya existe.");
+      return;
+    }
+    setCategoriesList([...categoriesList, trimmed]);
+    setNewCategoryName("");
+    setIsAddingCategory(false);
+    showToast(`Categoría "${trimmed}" agregada`);
   };
 
-  const resolveRequest = async (id: string) => {
-    await supabase.from('service_requests').update({ status: 'Resuelto' }).eq('id', id);
-    fetchData(); // Recarga instantánea
+  const handleSaveCategoryName = async (oldName: string) => {
+    const trimmed = editingCategoryNewName.trim();
+    if (!trimmed || trimmed === oldName) {
+      setEditingCategoryOldName(null);
+      return;
+    }
+
+    try {
+      // Update in Supabase
+      const { error } = await supabase
+        .from("menu_items")
+        .update({ category: trimmed })
+        .eq("category", oldName);
+
+      if (error) throw error;
+
+      // Update in local state
+      setCategoriesList(categoriesList.map(c => c === oldName ? trimmed : c));
+      setItems(items.map(i => i.category === oldName ? { ...i, category: trimmed } : i));
+      showToast(`Categoría renombrada a "${trimmed}"`);
+    } catch (err: any) {
+      console.error(err);
+      alert("Error al renombrar categoría en Supabase: " + err.message);
+    } finally {
+      setEditingCategoryOldName(null);
+    }
   };
 
-  const handleEditQuantity = (itemId: string, delta: number) => {
-    setEditingOrder((prev: any) => {
-      if (!prev) return prev;
-      const newItems = prev.items.map((item: any) => {
-        if (item.id === itemId) return { ...item, quantity: Math.max(0, item.quantity + delta) };
-        return item;
-      }).filter((item: any) => item.quantity > 0);
-      const newTotal = newItems.reduce((sum: number, item: any) => sum + (item.price * item.quantity), 0);
-      return { ...prev, items: newItems, total: newTotal };
-    });
+  const handleDeleteCategory = async (catName: string) => {
+    const itemsInCat = items.filter(i => i.category === catName);
+    const confirmText = itemsInCat.length > 0
+      ? `¿Estás seguro de eliminar la categoría "${catName}" y sus ${itemsInCat.length} producto(s)?`
+      : `¿Eliminar la categoría "${catName}"?`;
+
+    if (!confirm(confirmText)) return;
+
+    try {
+      if (itemsInCat.length > 0) {
+        const ids = itemsInCat.map(i => i.id);
+        const { error } = await supabase
+          .from("menu_items")
+          .delete()
+          .in("id", ids);
+
+        if (error) throw error;
+      }
+
+      setCategoriesList(categoriesList.filter(c => c !== catName));
+      setItems(items.filter(i => i.category !== catName));
+      showToast(`Categoría "${catName}" eliminada`);
+    } catch (err: any) {
+      console.error(err);
+      alert("Error al eliminar categoría: " + err.message);
+    }
   };
 
-  const saveEditedOrder = async () => {
-    if (!editingOrder) return;
-    if (editingOrder.items.length === 0) {
-      await supabase.from('orders').update({ status: 'Cancelado', items: [], total: 0 }).eq('id', editingOrder.id);
+  // Product Actions
+  const handleOpenProductModal = (category: string, item: MenuItem | null = null) => {
+    if (item) {
+      setEditingProduct({
+        id: item.id,
+        name: item.name,
+        description: item.description || "",
+        price: item.price,
+        category: item.category || category,
+        imageUrl: item.image_urls?.[0] || "",
+        glbUrl: item.glburl || "",
+        has3D: !!item.glburl,
+      });
     } else {
-      await supabase.from('orders').update({ items: editingOrder.items, total: editingOrder.total }).eq('id', editingOrder.id);
-    }
-    setEditingOrder(null);
-  };
-
-  // =========================================================================
-  // GESTION DE MENU LOGIC
-  // =========================================================================
-
-  const handleMenuSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
-    e.preventDefault();
-    setLoading(true);
-
-    const formData = new FormData(e.currentTarget);
-    const name = formData.get("name") as string;
-    const description = formData.get("description") as string;
-    const price = parseFloat(formData.get("price") as string) || 0;
-    const scale = parseFloat(formData.get("scale") as string) || 1;
-    const category = formData.get("category") as string;
-    
-    const glb = formData.get("glb") as File | null;
-    const usdz = formData.get("usdz") as File | null;
-    const imageFiles = formData.getAll("images") as File[];
-
-    try {
-      let glbUrl = "";
-      let usdzUrl = "";
-      const imageUrls: string[] = [];
-
-      // 1. Upload GLB directly to Supabase Storage
-      if (glb && glb.size > 0) {
-        if (glb.size > 50 * 1024 * 1024) throw new Error("El archivo .glb supera los 50MB.");
-        const processedBlob = await processGlbUnlit(glb);
-        glbUrl = await uploadToSupabase(processedBlob, glb.name, 'model/gltf-binary');
-      }
-
-      // 2. Upload USDZ directly to Supabase Storage
-      if (usdz && usdz.size > 0) {
-        if (usdz.size > 50 * 1024 * 1024) throw new Error("El archivo .usdz supera los 50MB.");
-        usdzUrl = await uploadToSupabase(usdz, usdz.name, usdz.type || 'model/vnd.usdz+zip');
-      }
-
-      // 3. Upload Images directly to Supabase Storage
-      for (const img of imageFiles) {
-        if (img.size > 0) {
-          const url = await uploadToSupabase(img, img.name, img.type || 'image/jpeg');
-          imageUrls.push(url);
-        }
-      }
-
-      // 4. Insert menu item with authenticated Supabase client
-      const id = Date.now().toString();
-      const { error: insertError } = await supabase.from('menu_items').insert({
-        id,
-        name,
-        description: description || '',
-        price,
-        scale,
-        glburl: glbUrl,
-        usdzurl: usdzUrl,
-        category: category || 'Destacados',
-        image_urls: imageUrls,
+      setEditingProduct({
+        id: null,
+        name: "",
+        description: "",
+        price: 0,
+        category: category,
+        imageUrl: "",
+        glbUrl: "",
+        has3D: false,
       });
-
-      if (insertError) throw insertError;
-
-      alert("Plato agregado exitosamente");
-      (e.target as HTMLFormElement).reset();
-      fetchData();
-    } catch (error: any) {
-      console.error(error);
-      alert(`Hubo un error al guardar el plato: ${error.message || error}`);
-    } finally {
-      setLoading(false);
     }
   };
 
-  const deleteMenuItem = async (id: string) => {
-    if (confirm("¿Estás seguro de que quieres borrar este plato? Esta acción no se puede deshacer.")) {
-      await supabase.from('menu_items').delete().eq('id', id);
-      fetchData();
-    }
-  };
+  const handleImageFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file || !editingProduct) return;
 
-  const saveEditedMenuItem = async (e: React.FormEvent<HTMLFormElement>) => {
-    e.preventDefault();
-    setLoading(true);
+    setIsUploadingImage(true);
     try {
-      const formData = new FormData(e.currentTarget);
-      const name = formData.get("name") as string;
-      const description = formData.get("description") as string;
-      const price = formData.get("price") as string;
-      const scale = parseFloat(formData.get("scale") as string) || 1;
-      const category = formData.get("category") as string;
-
-      await supabase.from('menu_items').update({
-        name, description, price: parseFloat(price), scale, category: category || "Destacados"
-      }).eq('id', editingMenuItem.id);
-      setEditingMenuItem(null);
-      fetchData();
-    } catch (err) {
-      alert("Error al actualizar");
+      const publicUrl = await uploadFileToSupabase(file, file.name, file.type || "image/jpeg", "products");
+      setEditingProduct({
+        ...editingProduct,
+        imageUrl: publicUrl,
+      });
+      showToast("Imagen subida a Supabase con éxito");
+    } catch (err: any) {
+      console.error("Error subiendo imagen:", err);
+      alert("Error al subir imagen a Supabase: " + (err.message || "revisá que el bucket menu-assets exista"));
     } finally {
-      setLoading(false);
+      setIsUploadingImage(false);
     }
   };
 
-  const renameCategory = async (oldName: string) => {
-    const newName = prompt(`Ingresa el nuevo nombre para la categoría "${oldName}":`, oldName);
-    if (newName && newName.trim() !== "" && newName !== oldName) {
-      await supabase.from('menu_items').update({ category: newName.trim() }).eq('category', oldName);
-      fetchData();
+  const handleGlbFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file || !editingProduct) return;
+
+    if (!file.name.toLowerCase().endsWith(".glb")) {
+      alert("Solo se admiten archivos 3D con extensión .glb");
+      return;
     }
-  };
 
-  // =========================================================================
-  // GESTION DE MESAS (SALON) LOGIC
-  // =========================================================================
-
-  const handleAddTable = async (e: React.FormEvent<HTMLFormElement>) => {
-    e.preventDefault();
-    setLoading(true);
-    const formData = new FormData(e.currentTarget);
-    const name = formData.get("name") as string;
-    const capacity = parseInt(formData.get("capacity") as string) || 2;
-    
+    setIsUploadingGlb(true);
     try {
-      await supabase.from('tables').insert({ name, capacity, status: 'Libre' });
-      (e.target as HTMLFormElement).reset();
-      fetchData();
-    } catch (err) {
-      console.error(err);
-      alert("Error al crear la mesa");
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const saveEditedTable = async (e: React.FormEvent<HTMLFormElement>) => {
-    e.preventDefault();
-    setLoading(true);
-    try {
-      const formData = new FormData(e.currentTarget);
-      const name = formData.get("name") as string;
-      const capacity = parseInt(formData.get("capacity") as string) || 2;
+      // Inyectar unlit para que se vea óptimo en Realidad Aumentada
+      const processedBlob = await processGlbUnlit(file);
+      const publicUrl = await uploadFileToSupabase(processedBlob, file.name, "model/gltf-binary", "3d-models");
       
-      await supabase.from('tables').update({ name, capacity }).eq('id', editingTable.id);
-      setEditingTable(null);
-      fetchData();
-    } catch (err) {
-      console.error(err);
-      alert("Error al guardar la mesa");
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const updateTableStatus = async (id: string, newStatus: string) => {
-    await supabase.from('tables').update({ status: newStatus }).eq('id', id);
-    fetchData();
-  };
-
-  const deleteTable = async (id: string) => {
-    if (confirm("¿Borrar esta mesa? Se perderá su código QR.")) {
-      await supabase.from('tables').delete().eq('id', id);
-      fetchData();
-    }
-  };
-
-  // =========================================================================
-  // BILLING / CAJA LOGIC
-  // =========================================================================
-  
-  const handleAddCustomCharge = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!billingTable || !customChargeName || !customChargePrice) return;
-    setLoading(true);
-    
-    const price = parseFloat(customChargePrice);
-    const itemJson = [{ id: 'custom-' + Date.now(), name: customChargeName, quantity: 1, price: price }];
-    
-    await supabase.from('orders').insert({
-      table_number: billingTable.name,
-      items: itemJson,
-      total: price,
-      status: 'Entregado' // Ya entregado, no pasa por cocina
-    });
-    
-    setCustomChargeName("");
-    setCustomChargePrice("");
-    fetchData();
-    setLoading(false);
-  };
-
-  const handleCheckout = async () => {
-    if (!billingTable) return;
-    if (!confirm(`¿Cerrar la mesa ${billingTable.name} y registrar el pago con ${paymentMethod}?`)) return;
-    setLoading(true);
-    
-    // 1. Filtrar órdenes activas
-    const tableOrders = orders.filter(o => o.table_number === billingTable.name && !o.status.startsWith('Pagado') && o.status !== 'Archivado');
-    
-    if (tableOrders.length > 0) {
-      // Consolidar todos los ítems de todas las rondas en una sola lista
-      const allItems = tableOrders.flatMap(o => o.items);
-      const totalAmount = tableOrders.reduce((sum, o) => sum + Number(o.total), 0);
-
-      // Crear el ticket consolidado final
-      await supabase.from('orders').insert({
-        table_number: billingTable.name,
-        items: allItems,
-        total: totalAmount,
-        status: `Pagado - ${paymentMethod}`
+      setEditingProduct({
+        ...editingProduct,
+        glbUrl: publicUrl,
+        has3D: true,
       });
-
-      // Archivar las órdenes parciales antiguas para que no salgan en el historial ni afecten el total
-      for (const order of tableOrders) {
-        await supabase.from('orders').update({ status: 'Archivado' }).eq('id', order.id);
-      }
+      showToast("Modelo 3D optimizado y subido a Supabase");
+    } catch (err: any) {
+      console.error("Error subiendo modelo 3D:", err);
+      alert("Error al subir modelo 3D: " + err.message);
+    } finally {
+      setIsUploadingGlb(false);
     }
-    
-    // 2. Limpiar llamados al mozo
-    const tableRequests = requests.filter(r => r.table_number === billingTable.name && r.status !== 'Resuelto');
-    for (const req of tableRequests) {
-      await supabase.from('service_requests').update({ status: 'Resuelto' }).eq('id', req.id);
-    }
-    
-    // 3. Liberar mesa
-    await supabase.from('tables').update({ status: 'Libre' }).eq('id', billingTable.id);
-    
-    setBillingTable(null);
-    fetchData();
-    setLoading(false);
   };
 
-  // =========================================================================
-  // RENDER
-  // =========================================================================
+  const handleSaveProduct = async () => {
+    if (!editingProduct) return;
+    if (!editingProduct.name.trim() || editingProduct.price <= 0) {
+      alert("Por favor ingresá un nombre y un precio válido.");
+      return;
+    }
 
-  if (!isAuthenticated) {
+    const payload = {
+      name: editingProduct.name.trim(),
+      description: editingProduct.description.trim(),
+      price: Number(editingProduct.price),
+      category: editingProduct.category,
+      glburl: editingProduct.has3D && editingProduct.glbUrl.trim() ? editingProduct.glbUrl.trim() : null,
+      image_urls: editingProduct.imageUrl.trim() ? [editingProduct.imageUrl.trim()] : [],
+    };
+
+    try {
+      if (editingProduct.id) {
+        // Update existing product
+        const { error } = await supabase
+          .from("menu_items")
+          .update(payload)
+          .eq("id", editingProduct.id);
+
+        if (error) throw error;
+
+        setItems(items.map(i => i.id === editingProduct.id ? { ...i, ...payload } : i));
+        showToast("Producto actualizado correctamente");
+      } else {
+        // Insert new product
+        const newId = `prod_${Date.now()}`;
+        const { error } = await supabase
+          .from("menu_items")
+          .insert({
+            id: newId,
+            ...payload,
+            scale: 1,
+          });
+
+        if (error) throw error;
+
+        setItems([...items, { id: newId, ...payload, scale: 1 }]);
+        showToast("Nuevo producto creado en Supabase");
+      }
+
+      setEditingProduct(null);
+    } catch (err: any) {
+      console.error("Error al guardar producto:", err);
+      alert("Error al guardar en Supabase: " + err.message);
+    }
+  };
+
+  const handleDeleteProduct = async (id: string, name: string) => {
+    if (!confirm(`¿Estás seguro de eliminar el producto "${name}"?`)) return;
+
+    try {
+      const { error } = await supabase
+        .from("menu_items")
+        .delete()
+        .eq("id", id);
+
+      if (error) throw error;
+
+      setItems(items.filter(i => i.id !== id));
+      showToast(`"${name}" eliminado`);
+    } catch (err: any) {
+      console.error("Error al eliminar producto:", err);
+      alert("Error al eliminar: " + err.message);
+    }
+  };
+
+  // Loading Session Screen
+  if (isCheckingAuth) {
     return (
-      <div className="min-h-screen bg-zinc-50 flex items-center justify-center p-4">
-        <form onSubmit={handleLogin} className="bg-white p-8 rounded-none w-full max-w-sm text-center border border-zinc-200">
-          <h2 className="text-2xl font-light tracking-widest uppercase text-zinc-900 mb-2">L'Atelier</h2>
-          <p className="text-zinc-500 text-xs tracking-widest uppercase mb-8">Administración</p>
-          {authError && <p className="text-red-500 text-xs mb-4">{authError}</p>}
-          <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="Correo electrónico" required className="w-full px-4 py-3 border border-zinc-200 focus:border-zinc-500 transition-all mb-4 outline-none text-center tracking-widest text-sm" />
-          <input type="password" value={password} onChange={(e) => setPassword(e.target.value)} placeholder="Contraseña" required className="w-full px-4 py-3 border border-zinc-200 focus:border-zinc-500 transition-all mb-4 outline-none text-center tracking-widest text-sm" />
-          <button type="submit" disabled={loading} className="w-full py-4 bg-zinc-900 hover:bg-zinc-800 text-white font-sans text-xs tracking-widest uppercase transition-all disabled:opacity-50">
-            {loading ? "Autenticando..." : "Ingresar"}
-          </button>
-        </form>
+      <div className="min-h-screen bg-[#FAF9F6] flex flex-col items-center justify-center p-4">
+        <Loader2 size={32} className="animate-spin text-emerald-700 mb-3" />
+        <p className="text-xs font-bold text-zinc-500 tracking-wider uppercase">Cargando panel de administración...</p>
       </div>
     );
   }
 
-  const pendingOrders = orders.filter(o => o.status === 'Pendiente');
-  const paidOrders = orders.filter(o => o.status?.startsWith('Pagado'));
-  const pendingRequests = requests.filter(r => r.status === 'Pendiente');
-  const uniqueCategories = Array.from(new Set(menuItems.map(item => item.category || "Destacados")));
-  
-  const filteredTables = tables.filter(t => t.name.toLowerCase().includes(searchTable.toLowerCase()));
+  // Login Screen if not authenticated
+  if (!isAuthenticated) {
+    return (
+      <div className="min-h-screen bg-[#FAF9F6] flex items-center justify-center p-4">
+        <div className="bg-white rounded-3xl border border-zinc-200/90 p-8 w-full max-w-md shadow-xl">
+          
+          <div className="text-center mb-8">
+            <img 
+              src="/logo-corta-la-fruta.png" 
+              alt="Corta la Fruta Logo" 
+              className="h-14 w-auto mx-auto mb-3 object-contain"
+            />
+            <h1 className="text-2xl font-extrabold text-zinc-900 tracking-tight">Panel de Control</h1>
+            <p className="text-xs text-zinc-500 font-medium mt-1">
+              Gestión de Catálogo, Precios y Modelos 3D
+            </p>
+          </div>
+
+          {authError && (
+            <div className="mb-5 bg-rose-50 border border-rose-200 text-rose-700 text-xs font-semibold p-3.5 rounded-xl flex items-center gap-2">
+              <X size={16} className="shrink-0 text-rose-500" />
+              <span>{authError}</span>
+            </div>
+          )}
+
+          <form onSubmit={handleLogin} className="space-y-4">
+            <div>
+              <label className="block text-xs font-bold text-zinc-700 mb-1.5 uppercase tracking-wider">
+                Correo Electrónico
+              </label>
+              <input 
+                type="email" 
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                placeholder="admin@cortalafruta.com"
+                required
+                className="w-full bg-zinc-50 focus:bg-white border border-zinc-200 focus:border-emerald-600 rounded-xl px-3.5 py-2.5 text-sm outline-none transition-all"
+              />
+            </div>
+
+            <div>
+              <label className="block text-xs font-bold text-zinc-700 mb-1.5 uppercase tracking-wider">
+                Contraseña
+              </label>
+              <input 
+                type="password" 
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                placeholder="••••••••"
+                required
+                className="w-full bg-zinc-50 focus:bg-white border border-zinc-200 focus:border-emerald-600 rounded-xl px-3.5 py-2.5 text-sm outline-none transition-all font-mono"
+              />
+            </div>
+
+            <button
+              type="submit"
+              disabled={isSubmittingAuth}
+              className="w-full bg-emerald-700 hover:bg-emerald-800 text-white font-extrabold text-sm py-3 rounded-xl transition-all shadow-md flex items-center justify-center gap-2 disabled:opacity-50 mt-2"
+            >
+              {isSubmittingAuth ? (
+                <>
+                  <Loader2 size={18} className="animate-spin" />
+                  <span>Verificando...</span>
+                </>
+              ) : (
+                <>
+                  <Lock size={16} />
+                  <span>Iniciar Sesión</span>
+                </>
+              )}
+            </button>
+          </form>
+
+          <div className="mt-8 pt-6 border-t border-zinc-100 text-center">
+            <Link 
+              href="/" 
+              className="text-xs font-bold text-zinc-500 hover:text-zinc-800 transition-colors flex items-center justify-center gap-1.5"
+            >
+              <ArrowLeft size={14} />
+              <span>Volver a la tienda pública</span>
+            </Link>
+          </div>
+
+        </div>
+      </div>
+    );
+  }
+
+  // Total KPIs
+  const totalProducts = items.length;
+  const productsWith3D = items.filter(i => !!i.glburl).length;
 
   return (
-    <div className="min-h-screen bg-zinc-50 text-zinc-900 font-sans pb-20">
+    <div className="min-h-screen bg-[#FAF9F6] text-zinc-900 font-sans pb-24 selection:bg-rose-500 selection:text-white">
       
-      {/* Header Admin */}
-      <header className="bg-zinc-900 text-white p-6 sticky top-0 z-40">
-        <div className="max-w-6xl mx-auto flex justify-between items-center">
-          <div>
-            <h1 className="text-xl font-light tracking-[0.2em] uppercase">L'Atelier</h1>
-            <p className="text-zinc-400 text-[10px] tracking-widest uppercase mt-1">Terminal de Administración</p>
+      {/* Toast message */}
+      {toastMessage && (
+        <div className="fixed bottom-6 right-6 z-50 bg-zinc-900 text-white text-xs font-bold px-4 py-3 rounded-xl shadow-xl border border-zinc-800 flex items-center gap-2 animate-in fade-in slide-in-from-bottom-2">
+          <Check size={16} className="text-emerald-400" />
+          <span>{toastMessage}</span>
+        </div>
+      )}
+
+      {/* Header */}
+      <header className="bg-white border-b border-zinc-200 sticky top-0 z-30 shadow-2xs">
+        <div className="max-w-6xl mx-auto px-4 md:px-6 h-16 flex items-center justify-between gap-4">
+          <div className="flex items-center gap-3 min-w-0">
+            <Link 
+              href="/" 
+              className="text-zinc-600 hover:text-zinc-900 p-2 -ml-2 rounded-xl hover:bg-zinc-100 transition-colors flex items-center gap-1.5 text-xs font-bold shrink-0"
+            >
+              <ArrowLeft size={16} />
+              <span>Ver Menú</span>
+            </Link>
+            <div className="h-4 w-px bg-zinc-200 shrink-0" />
+            <div className="flex items-center gap-2.5 min-w-0">
+              <img 
+                src="/logo-corta-la-fruta.png" 
+                alt="Corta la Fruta Logo" 
+                className="h-8 w-auto object-contain shrink-0" 
+              />
+              <div className="min-w-0">
+                <h1 className="font-extrabold text-sm sm:text-base text-zinc-900 truncate">
+                  Panel de Catálogo & Modelos 3D
+                </h1>
+              </div>
+            </div>
           </div>
-          <div className="flex gap-4">
-            <Link href="/" className="px-4 py-2 border border-zinc-700 hover:bg-zinc-800 text-xs tracking-widest uppercase transition-colors">Ver Menú</Link>
-            <button onClick={handleLogout} className="px-4 py-2 border border-red-900/30 text-red-400 hover:bg-red-900/20 text-xs tracking-widest uppercase transition-colors">Salir</button>
+          
+          <div className="flex items-center gap-2 shrink-0">
+            <button
+              onClick={fetchMenuData}
+              disabled={isLoadingMenu}
+              className="p-2 text-zinc-500 hover:text-zinc-900 hover:bg-zinc-100 rounded-xl transition-colors text-xs font-bold hidden sm:flex items-center gap-1.5"
+              title="Recargar datos de Supabase"
+            >
+              <Loader2 size={14} className={isLoadingMenu ? "animate-spin text-emerald-600" : ""} />
+              <span>Sincronizar</span>
+            </button>
+
+            <button 
+              onClick={handleLogout}
+              className="text-xs font-bold text-rose-600 bg-rose-50 hover:bg-rose-100 border border-rose-100 px-3 py-1.5 rounded-xl transition-colors flex items-center gap-1.5"
+            >
+              <LogOut size={14} />
+              <span className="hidden sm:inline">Cerrar Sesión</span>
+            </button>
           </div>
         </div>
       </header>
 
-      {/* Tabs */}
-      <div className="bg-white border-b border-zinc-200 mb-8 sticky top-[88px] z-30">
-        <div className="max-w-6xl mx-auto flex overflow-x-auto no-scrollbar">
-          <button onClick={() => setActiveTab("cocina")} className={`px-6 md:px-8 py-4 text-[10px] md:text-xs tracking-widest uppercase transition-colors border-b-2 whitespace-nowrap ${activeTab === 'cocina' ? 'border-zinc-900 text-zinc-900 font-medium' : 'border-transparent text-zinc-500 hover:text-zinc-700'}`}>
-            Cocina y Salón
-            {(pendingOrders.length > 0 || pendingRequests.length > 0) && (
-              <span className="ml-2 bg-red-600 text-white px-2 py-0.5 rounded-full text-[10px]">
-                {pendingOrders.length + pendingRequests.length}
-              </span>
-            )}
-          </button>
-          <button onClick={() => setActiveTab("salon")} className={`px-6 md:px-8 py-4 text-[10px] md:text-xs tracking-widest uppercase transition-colors border-b-2 whitespace-nowrap ${activeTab === 'salon' ? 'border-zinc-900 text-zinc-900 font-medium' : 'border-transparent text-zinc-500 hover:text-zinc-700'}`}>
-            Gestión de Mesas
-          </button>
-          <button onClick={() => setActiveTab("menu")} className={`px-6 md:px-8 py-4 text-[10px] md:text-xs tracking-widest uppercase transition-colors border-b-2 whitespace-nowrap ${activeTab === 'menu' ? 'border-zinc-900 text-zinc-900 font-medium' : 'border-transparent text-zinc-500 hover:text-zinc-700'}`}>
-            Gestión de Platos
-          </button>
-          <button onClick={() => setActiveTab("caja")} className={`px-6 md:px-8 py-4 text-[10px] md:text-xs tracking-widest uppercase transition-colors border-b-2 whitespace-nowrap ${activeTab === 'caja' ? 'border-zinc-900 text-zinc-900 font-medium' : 'border-transparent text-zinc-500 hover:text-zinc-700'}`}>
-            Caja e Historial
-          </button>
-        </div>
-      </div>
-
-      <div className="max-w-6xl mx-auto px-6">
-        {/* ========================================================================= */}
-        {/* TAB 1: COCINA Y SALON */}
-        {/* ========================================================================= */}
-        {activeTab === "cocina" && (
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-            {/* ALERTAS */}
-            <div className="lg:col-span-1 space-y-4">
-              <h2 className="text-sm tracking-widest uppercase font-medium border-b border-zinc-200 pb-2 mb-4">Alertas de Mesas</h2>
-              {pendingRequests.length === 0 ? (
-                <p className="text-zinc-400 text-sm italic">No hay llamados pendientes.</p>
-              ) : (
-                pendingRequests.map(req => (
-                  <div key={req.id} className={`p-5 border-l-4 bg-white shadow-sm flex justify-between items-center ${req.request_type === 'cuenta' ? 'border-green-500' : 'border-red-500'}`}>
-                    <div>
-                      <p className="text-2xl font-light">{req.table_number}</p>
-                      <p className="text-sm font-medium uppercase tracking-wider mt-1">{req.request_type === 'cuenta' ? '🧾 Pide la cuenta' : '🛎️ Llama al mozo'}</p>
-                      <p className="text-xs text-zinc-400 mt-2">{new Date(req.created_at).toLocaleTimeString()}</p>
-                    </div>
-                    <button onClick={() => resolveRequest(req.id)} className="w-12 h-12 rounded-full bg-zinc-100 hover:bg-zinc-200 flex items-center justify-center transition-colors">✓</button>
-                  </div>
-                ))
-              )}
+      <main className="max-w-6xl mx-auto px-4 md:px-6 py-8">
+        
+        {/* Dashboard KPI Grid */}
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-8">
+          <div className="bg-white p-5 rounded-2xl border border-zinc-200 shadow-2xs flex items-center gap-4">
+            <div className="w-11 h-11 rounded-xl bg-emerald-50 text-emerald-700 flex items-center justify-center font-bold">
+              <Layers size={22} />
             </div>
+            <div>
+              <p className="text-[10px] text-zinc-500 font-extrabold uppercase tracking-wider">Categorías Activas</p>
+              <p className="text-2xl font-extrabold text-zinc-900 font-mono">{categoriesList.length}</p>
+            </div>
+          </div>
 
-            {/* PEDIDOS DE COCINA */}
-            <div className="lg:col-span-2 space-y-8">
+          <div className="bg-white p-5 rounded-2xl border border-zinc-200 shadow-2xs flex items-center gap-4">
+            <div className="w-11 h-11 rounded-xl bg-rose-50 text-rose-600 flex items-center justify-center font-bold">
+              <Package size={22} />
+            </div>
+            <div>
+              <p className="text-[10px] text-zinc-500 font-extrabold uppercase tracking-wider">Productos en Carta</p>
+              <p className="text-2xl font-extrabold text-zinc-900 font-mono">{totalProducts}</p>
+            </div>
+          </div>
+
+          <div className="bg-white p-5 rounded-2xl border border-zinc-200 shadow-2xs flex items-center justify-between">
+            <div className="flex items-center gap-4">
+              <div className="w-11 h-11 rounded-xl bg-amber-50 text-amber-600 flex items-center justify-center font-bold">
+                <Box size={22} />
+              </div>
               <div>
-                <h2 className="text-sm tracking-widest uppercase font-medium border-b border-zinc-200 pb-2 mb-4">Pedidos Nuevos (Cocina)</h2>
-                {pendingOrders.length === 0 ? (
-                  <p className="text-zinc-400 text-sm italic">No hay pedidos pendientes.</p>
-                ) : (
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    {pendingOrders.map(order => (
-                      <div key={order.id} className="bg-white border border-zinc-200 p-5 shadow-sm flex flex-col">
-                        <div className="flex justify-between items-start mb-4 border-b border-zinc-100 pb-4">
-                          <div>
-                            <span className="bg-zinc-900 text-white text-xs px-2 py-1 tracking-widest uppercase">{order.table_number}</span>
-                            <p className="text-xs text-zinc-400 mt-2">{new Date(order.created_at).toLocaleTimeString()}</p>
-                          </div>
-                          <div className="text-right">
-                            <p className="text-xs text-zinc-500 tracking-widest uppercase">Total</p>
-                            <p className="text-lg font-medium">${order.total}</p>
-                          </div>
-                        </div>
-                        <div className="flex-grow space-y-3 mb-6">
-                          {order.items.map((item: any, i: number) => (
-                            <div key={i} className="flex flex-col text-sm border-b border-zinc-50 last:border-0 pb-2 mb-2 last:pb-0 last:mb-0">
-                              <div className="flex justify-between">
-                                <span><span className="font-medium mr-2">{item.quantity}x</span> {item.name}</span>
-                              </div>
-                              {item.notes && (
-                                <p className="text-xs text-red-600 mt-1 italic pl-6 flex items-start gap-1">
-                                  <span>⚠️</span> {item.notes}
-                                </p>
-                              )}
-                            </div>
-                          ))}
-                        </div>
-                        <div className="flex gap-2">
-                          <button onClick={() => setEditingOrder(order)} className="w-1/3 py-3 border border-zinc-200 hover:bg-zinc-100 text-zinc-700 text-xs tracking-widest uppercase transition-colors">✏️ Editar</button>
-                          <button onClick={() => updateOrderStatus(order.id, 'Entregado')} className="w-2/3 py-3 bg-zinc-900 hover:bg-zinc-800 text-white text-xs tracking-widest uppercase transition-colors">Marcar Servido</button>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                )}
+                <p className="text-[10px] text-zinc-500 font-extrabold uppercase tracking-wider">Productos 3D / AR</p>
+                <p className="text-2xl font-extrabold text-zinc-900 font-mono">{productsWith3D}</p>
               </div>
             </div>
             
-            {/* Modal Editar Pedido */}
-            {editingOrder && (
-              <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-                <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={() => setEditingOrder(null)}></div>
-                <div className="relative bg-white w-full max-w-md shadow-2xl flex flex-col max-h-[90vh]">
-                  <div className="p-6 border-b border-zinc-100 flex justify-between items-center bg-zinc-50">
-                    <h2 className="font-light text-xl tracking-wide uppercase">Editar {editingOrder.table_number}</h2>
-                    <button onClick={() => setEditingOrder(null)} className="text-zinc-400 hover:text-zinc-900 text-2xl font-light">&times;</button>
-                  </div>
-                  <div className="p-6 overflow-y-auto flex-grow space-y-4">
-                    {editingOrder.items.length === 0 ? (
-                      <p className="text-red-500 text-sm">El pedido quedará cancelado porque no tiene platos.</p>
-                    ) : (
-                      editingOrder.items.map((item: any) => (
-                        <div key={item.id} className="flex justify-between items-center border-b border-zinc-100 pb-4">
-                          <div>
-                            <p className="text-sm font-medium">{item.name}</p>
-                            <p className="text-xs text-zinc-500">${item.price.toFixed(2)} c/u</p>
-                          </div>
-                          <div className="flex items-center gap-4 bg-zinc-50 rounded-full px-2 py-1 border border-zinc-200">
-                            <button onClick={() => handleEditQuantity(item.id, -1)} className="w-8 h-8 flex items-center justify-center text-lg hover:text-red-500">-</button>
-                            <span className="w-4 text-center text-sm font-medium">{item.quantity}</span>
-                            <button onClick={() => handleEditQuantity(item.id, 1)} className="w-8 h-8 flex items-center justify-center text-lg hover:text-green-500">+</button>
-                          </div>
-                        </div>
-                      ))
-                    )}
-                  </div>
-                  <div className="p-6 border-t border-zinc-100 bg-zinc-50">
-                    <div className="flex justify-between mb-4">
-                      <span className="text-sm font-medium uppercase tracking-widest text-zinc-500">Nuevo Total</span>
-                      <span className="text-xl font-bold">${editingOrder.total.toFixed(2)}</span>
-                    </div>
-                    <button onClick={saveEditedOrder} className="w-full py-4 bg-zinc-900 text-white font-sans text-xs tracking-widest uppercase hover:bg-zinc-800 transition-colors">Guardar Cambios</button>
-                  </div>
-                </div>
+            <button 
+              onClick={() => setIsAddingCategory(true)}
+              className="bg-emerald-700 hover:bg-emerald-800 text-white px-4 py-2.5 rounded-xl text-xs font-bold transition-all shadow-xs flex items-center gap-1.5 shrink-0"
+            >
+              <Plus size={16} />
+              <span className="hidden lg:inline">Nueva Categoría</span>
+            </button>
+          </div>
+        </div>
+
+        {/* Modal: Crear Nueva Categoría */}
+        {isAddingCategory && (
+          <div className="mb-6 bg-white p-5 rounded-2xl border border-emerald-300 shadow-md animate-in fade-in slide-in-from-top-2 duration-200">
+            <h4 className="font-extrabold text-sm text-zinc-900 mb-2 flex items-center gap-2">
+              <Plus size={16} className="text-emerald-700" />
+              <span>Agregar Nueva Categoría al Menú</span>
+            </h4>
+            <div className="flex flex-col sm:flex-row items-center gap-2">
+              <input 
+                type="text" 
+                value={newCategoryName}
+                onChange={(e) => setNewCategoryName(e.target.value)}
+                placeholder="Nombre de la nueva categoría (ej: Smoothies & Jugos Naturales)"
+                className="w-full sm:flex-1 border border-zinc-300 focus:border-emerald-600 rounded-xl px-3.5 py-2 text-xs outline-none font-medium"
+                autoFocus
+              />
+              <div className="flex items-center gap-2 w-full sm:w-auto">
+                <button
+                  onClick={handleCreateCategory}
+                  className="flex-1 sm:flex-none bg-emerald-700 hover:bg-emerald-800 text-white text-xs font-bold px-4 py-2 rounded-xl transition-colors"
+                >
+                  Guardar Categoría
+                </button>
+                <button
+                  onClick={() => setIsAddingCategory(false)}
+                  className="flex-1 sm:flex-none bg-zinc-100 hover:bg-zinc-200 text-zinc-600 text-xs font-bold px-4 py-2 rounded-xl transition-colors"
+                >
+                  Cancelar
+                </button>
               </div>
-            )}
+            </div>
           </div>
         )}
 
-        {/* ========================================================================= */}
-        {/* TAB 2: GESTION DE MESAS (SALON) */}
-        {/* ========================================================================= */}
-        {activeTab === "salon" && (
-          <div className="space-y-8">
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-              
-              {/* Formulario Nueva Mesa */}
-              <div className="md:col-span-1 bg-white p-6 border border-zinc-200 shadow-sm self-start sticky top-[160px]">
-                <h2 className="text-sm tracking-widest uppercase font-medium border-b border-zinc-200 pb-2 mb-6">Agregar Mesa</h2>
-                <form onSubmit={handleAddTable} className="space-y-4">
-                  <div>
-                    <label className="block text-xs font-medium tracking-widest uppercase text-zinc-500 mb-2">Nombre / Número</label>
-                    <input name="name" type="text" placeholder="Ej: Mesa 1, Barra 3..." required className="w-full px-4 py-3 border border-zinc-200 focus:border-zinc-900 outline-none text-sm" />
-                  </div>
-                  <div>
-                    <label className="block text-xs font-medium tracking-widest uppercase text-zinc-500 mb-2">Capacidad (Personas)</label>
-                    <input name="capacity" type="number" defaultValue="2" min="1" required className="w-full px-4 py-3 border border-zinc-200 focus:border-zinc-900 outline-none text-sm" />
-                  </div>
-                  <p className="text-[10px] text-zinc-400">Si necesitas juntar dos mesas (ej. 1 y 2), simplemente agrega una mesa llamada "Mesa 1+2" y ponle capacidad doble.</p>
-                  <button type="submit" disabled={loading} className="w-full py-3 bg-zinc-900 hover:bg-zinc-800 text-white text-xs tracking-widest uppercase transition-colors">
-                    {loading ? "..." : "Crear Mesa"}
-                  </button>
-                </form>
-              </div>
+        {/* Categories & Products List */}
+        <div className="space-y-8">
+          {categoriesList.map((catName) => {
+            const categoryItems = items.filter(i => i.category === catName);
 
-              {/* Lista de Mesas */}
-              <div className="md:col-span-2 space-y-6">
-                <input 
-                  type="text" 
-                  placeholder="🔍 Buscar mesa..." 
-                  value={searchTable}
-                  onChange={(e) => setSearchTable(e.target.value)}
-                  className="w-full px-4 py-4 bg-white border border-zinc-200 focus:border-zinc-900 outline-none shadow-sm text-sm"
-                />
-
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  {filteredTables.map(table => (
-                    <div key={table.id} className={`bg-white border-l-4 p-5 shadow-sm ${
-                      table.status === 'Libre' ? 'border-green-500' : 
-                      table.status === 'Ocupada' ? 'border-red-500' : 
-                      'border-yellow-500'
-                    }`}>
-                      <div className="flex justify-between items-start mb-4">
-                        <div>
-                          <h3 className="text-xl font-light">{table.name}</h3>
-                          <p className="text-xs text-zinc-500 tracking-widest uppercase mt-1">Capacidad: {table.capacity}</p>
-                        </div>
-                        <select 
-                          value={table.status}
-                          onChange={(e) => updateTableStatus(table.id, e.target.value)}
-                          className={`px-3 py-1 text-xs tracking-widest uppercase font-medium rounded-full transition-colors outline-none cursor-pointer appearance-none text-center ${
-                            table.status === 'Libre' ? 'bg-green-100 text-green-700' : 
-                            table.status === 'Ocupada' ? 'bg-red-100 text-red-700' : 
-                            'bg-yellow-100 text-yellow-700'
-                          }`}
-                        >
-                          <option value="Libre">Libre</option>
-                          <option value="Ocupada">Ocupada</option>
-                          <option value="Reservada">Reservada</option>
-                        </select>
-                      </div>
-
-                      <div className="flex gap-2 mt-4 pt-4 border-t border-zinc-100">
-                        {table.status !== 'Libre' && (
-                          <button onClick={() => setBillingTable(table)} className="flex-1 py-2 bg-zinc-900 text-white hover:bg-zinc-800 text-xs tracking-widest uppercase transition-colors">💳 Cuenta</button>
-                        )}
-                        <button onClick={() => setPrintingTable(table)} className="flex-1 py-2 bg-zinc-100 hover:bg-zinc-200 text-zinc-800 text-xs tracking-widest uppercase transition-colors">🖨️ QR</button>
-                        <button onClick={() => setEditingTable(table)} className="w-10 flex items-center justify-center bg-zinc-100 hover:bg-zinc-200 transition-colors">✏️</button>
-                        <button onClick={() => deleteTable(table.id)} className="w-10 flex items-center justify-center bg-red-50 text-red-500 hover:bg-red-100 transition-colors">🗑️</button>
-                      </div>
-                    </div>
-                  ))}
-                  {filteredTables.length === 0 && <p className="text-zinc-500 italic col-span-2">No se encontraron mesas.</p>}
-                </div>
-              </div>
-
-            </div>
-
-            {/* Modal Imprimir QR */}
-            {printingTable && (
-              <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-zinc-100">
-                <div className="bg-white p-10 max-w-sm w-full text-center shadow-2xl flex flex-col items-center">
-                  <h2 className="text-2xl font-light tracking-wide uppercase mb-2">Escanea para ordenar</h2>
-                  <p className="text-sm font-medium tracking-widest uppercase text-zinc-500 mb-8 border-b border-zinc-200 pb-4 w-full">
-                    {printingTable.name}
-                  </p>
-                  
-                  <div className="bg-white p-4 border border-zinc-200 mb-8" id="qr-print-area">
-                    <QRCodeSVG 
-                      value={`${typeof window !== 'undefined' ? window.location.origin : ''}/?mesa=${encodeURIComponent(printingTable.name)}`}
-                      size={200}
-                      level={"H"}
-                    />
-                  </div>
-
-                  <div className="flex gap-4 w-full">
-                    <button onClick={() => setPrintingTable(null)} className="flex-1 py-3 border border-zinc-200 hover:bg-zinc-50 text-xs tracking-widest uppercase">Volver</button>
-                    <button onClick={() => window.print()} className="flex-1 py-3 bg-zinc-900 hover:bg-zinc-800 text-white text-xs tracking-widest uppercase">🖨️ Imprimir</button>
-                  </div>
-                  
-                  <style jsx global>{`
-                    @media print {
-                      body * { visibility: hidden; }
-                      #qr-print-area, #qr-print-area *, h2, p { visibility: visible; }
-                      #qr-print-area { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); border: none; }
-                      h2 { position: absolute; left: 0; right: 0; text-align: center; top: 10%; }
-                      p { position: absolute; left: 0; right: 0; text-align: center; top: 18%; }
-                    }
-                  `}</style>
-                </div>
-              </div>
-            )}
-
-            {/* Modal Editar Mesa */}
-            {editingTable && (
-              <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-                <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={() => setEditingTable(null)}></div>
-                <div className="relative bg-white w-full max-w-sm shadow-2xl p-6">
-                  <h2 className="font-light text-xl tracking-wide uppercase mb-6">Editar Mesa</h2>
-                  <form onSubmit={saveEditedTable} className="space-y-4">
-                    <div>
-                      <label className="block text-xs font-medium tracking-widest uppercase text-zinc-500 mb-2">Nombre / Número</label>
-                      <input name="name" defaultValue={editingTable.name} required type="text" className="w-full px-4 py-3 border border-zinc-200 focus:border-zinc-900 outline-none" />
-                    </div>
-                    <div>
-                      <label className="block text-xs font-medium tracking-widest uppercase text-zinc-500 mb-2">Capacidad</label>
-                      <input name="capacity" defaultValue={editingTable.capacity} required type="number" min="1" className="w-full px-4 py-3 border border-zinc-200 focus:border-zinc-900 outline-none" />
-                    </div>
-                    <div className="flex gap-4 pt-4">
-                      <button type="button" onClick={() => setEditingTable(null)} className="flex-1 py-3 border border-zinc-200 text-xs tracking-widest uppercase">Cancelar</button>
-                      <button type="submit" disabled={loading} className="flex-1 py-3 bg-zinc-900 text-white text-xs tracking-widest uppercase">Guardar</button>
-                    </div>
-                  </form>
-                </div>
-              </div>
-            )}
-
-            {/* Modal de Facturación (Ver Cuenta) */}
-            {billingTable && (() => {
-              const tableOrders = orders.filter(o => o.table_number === billingTable.name && !o.status.startsWith('Pagado') && o.status !== 'Archivado');
-              const allItems = tableOrders.flatMap(o => o.items);
-              const totalAmount = tableOrders.reduce((sum, o) => sum + Number(o.total), 0);
-
-              return (
-                <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-                  <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={() => setBillingTable(null)}></div>
-                  <div className="relative bg-white w-full max-w-md shadow-2xl flex flex-col max-h-[90vh]">
-                    <div className="p-6 border-b border-zinc-100 flex justify-between items-center bg-zinc-50">
-                      <div>
-                        <h2 className="font-light text-xl tracking-wide uppercase">Cuenta</h2>
-                        <p className="text-xs text-zinc-500 tracking-widest uppercase mt-1">{billingTable.name}</p>
-                      </div>
-                      <button onClick={() => setBillingTable(null)} className="text-zinc-400 hover:text-zinc-900 text-2xl font-light">&times;</button>
-                    </div>
-                    
-                    <div className="p-6 overflow-y-auto flex-grow">
-                      {allItems.length === 0 ? (
-                        <p className="text-zinc-500 text-sm italic">No hay consumos registrados para esta mesa.</p>
-                      ) : (
-                        <div className="space-y-4">
-                          {allItems.map((item: any, i: number) => (
-                            <div key={i} className="flex justify-between text-sm border-b border-zinc-50 pb-2">
-                              <div>
-                                <span className="font-medium mr-2">{item.quantity}x</span>
-                                <span>{item.name}</span>
-                              </div>
-                              <span className="font-medium">${(item.price * item.quantity).toFixed(2)}</span>
-                            </div>
-                          ))}
-                        </div>
-                      )}
-                      
-                      {/* Formulario de Cargo Extra */}
-                      <form onSubmit={handleAddCustomCharge} className="mt-8 pt-6 border-t border-zinc-200">
-                        <p className="text-xs font-medium tracking-widest uppercase text-zinc-500 mb-4">Agregar Cargo Extra</p>
-                        <div className="flex gap-2">
-                          <input 
-                            type="text" 
-                            placeholder="Ej: Servicio de Mesa" 
-                            value={customChargeName}
-                            onChange={(e) => setCustomChargeName(e.target.value)}
-                            className="flex-grow px-3 py-2 border border-zinc-200 text-sm outline-none focus:border-zinc-400"
-                          />
-                          <input 
-                            type="number" 
-                            placeholder="$ 0.00" 
-                            step="0.01"
-                            value={customChargePrice}
-                            onChange={(e) => setCustomChargePrice(e.target.value)}
-                            className="w-24 px-3 py-2 border border-zinc-200 text-sm outline-none focus:border-zinc-400"
-                          />
-                          <button type="submit" disabled={!customChargeName || !customChargePrice || loading} className="px-4 bg-zinc-100 hover:bg-zinc-200 text-xs tracking-widest uppercase transition-colors disabled:opacity-50">
-                            Añadir
-                          </button>
-                        </div>
-                      </form>
-                    </div>
-
-                    <div className="p-6 border-t border-zinc-100 bg-zinc-50">
-                      <div className="flex justify-between items-center mb-4">
-                        <span className="text-sm font-medium uppercase tracking-widest text-zinc-500">Total a Pagar</span>
-                        <span className="text-2xl font-bold">${totalAmount.toFixed(2)}</span>
-                      </div>
-                      
-                      <div className="mb-4">
-                        <label className="block text-xs font-medium tracking-widest uppercase text-zinc-500 mb-2">Método de Pago</label>
-                        <div className="flex gap-2">
-                          {["Efectivo", "Transferencia", "QR"].map(method => (
-                            <button 
-                              key={method}
-                              type="button"
-                              onClick={() => setPaymentMethod(method)}
-                              className={`flex-1 py-2 text-xs font-medium uppercase tracking-wider border transition-colors ${
-                                paymentMethod === method 
-                                  ? 'bg-zinc-900 text-white border-zinc-900' 
-                                  : 'bg-white text-zinc-600 border-zinc-200 hover:bg-zinc-50'
-                              }`}
-                            >
-                              {method}
-                            </button>
-                          ))}
-                        </div>
-                      </div>
-
+            return (
+              <div key={catName} className="bg-white rounded-2xl border border-zinc-200 overflow-hidden shadow-2xs">
+                
+                {/* Category Header */}
+                <div className="bg-zinc-50/90 px-5 sm:px-6 py-4 border-b border-zinc-200 flex flex-wrap justify-between items-center gap-3">
+                  {editingCategoryOldName === catName ? (
+                    <div className="flex items-center gap-2 flex-1 max-w-md">
+                      <input 
+                        type="text" 
+                        value={editingCategoryNewName}
+                        onChange={(e) => setEditingCategoryNewName(e.target.value)}
+                        className="text-base font-extrabold border border-zinc-300 rounded-xl px-3 py-1 bg-white focus:outline-none focus:ring-2 focus:ring-emerald-700 w-full"
+                        autoFocus
+                      />
                       <button 
-                        onClick={handleCheckout} 
-                        disabled={loading || totalAmount === 0}
-                        className="w-full py-4 bg-zinc-900 text-white font-sans text-xs tracking-widest uppercase hover:bg-zinc-800 transition-colors disabled:opacity-50 flex justify-center items-center h-[52px]"
+                        onClick={() => handleSaveCategoryName(catName)} 
+                        className="p-2 text-emerald-700 hover:bg-emerald-50 rounded-xl"
+                        title="Guardar nombre"
                       >
-                        {loading ? <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div> : "Cobrar y Liberar Mesa"}
+                        <Save size={16} />
+                      </button>
+                      <button 
+                        onClick={() => setEditingCategoryOldName(null)} 
+                        className="p-2 text-zinc-400 hover:bg-zinc-200 rounded-xl"
+                      >
+                        <X size={16} />
                       </button>
                     </div>
-                  </div>
-                </div>
-              );
-            })()}
-          </div>
-        )}
-
-        {/* ========================================================================= */}
-        {/* TAB 3: GESTION DE MENU */}
-        {/* ========================================================================= */}
-        {activeTab === "menu" && (
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-10">
-            {/* FORMULARIO AGREGAR PLATO */}
-            <div className="bg-white p-8 border border-zinc-200 shadow-sm self-start sticky top-[160px]">
-              <h2 className="text-lg font-light tracking-widest uppercase border-b border-zinc-200 pb-4 mb-8">Agregar Plato al Menú</h2>
-              <form onSubmit={handleMenuSubmit} className="space-y-6">
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                  <div>
-                    <label className="block text-xs font-medium tracking-widest uppercase text-zinc-500 mb-2">Nombre del Plato</label>
-                    <input name="name" type="text" required className="w-full px-4 py-3 border border-zinc-200 focus:border-zinc-900 outline-none transition-colors" />
-                  </div>
-                  <div>
-                    <label className="block text-xs font-medium tracking-widest uppercase text-zinc-500 mb-2">Precio ($)</label>
-                    <input name="price" type="number" step="0.01" required className="w-full px-4 py-3 border border-zinc-200 focus:border-zinc-900 outline-none transition-colors" />
-                  </div>
-                  <div>
-                    <label className="block text-xs font-medium tracking-widest uppercase text-zinc-500 mb-2">Escala AR (1 = 100%)</label>
-                    <input name="scale" type="number" step="0.01" defaultValue="1" required className="w-full px-4 py-3 border border-zinc-200 focus:border-zinc-900 outline-none transition-colors" />
-                  </div>
-                </div>
-
-                <div>
-                  <label className="block text-xs font-medium tracking-widest uppercase text-zinc-500 mb-2">Categoría</label>
-                  <input name="category" list="category-list" required placeholder="Ej. Destacados, Entradas, Pizzas..." className="w-full px-4 py-3 border border-zinc-200 focus:border-zinc-900 outline-none transition-colors bg-white" />
-                  <datalist id="category-list">
-                    {uniqueCategories.map(cat => <option key={cat as string} value={cat as string} />)}
-                  </datalist>
-                </div>
-
-                <div>
-                  <label className="block text-xs font-medium tracking-widest uppercase text-zinc-500 mb-2">Descripción</label>
-                  <textarea name="description" required rows={3} className="w-full px-4 py-3 border border-zinc-200 focus:border-zinc-900 outline-none transition-colors resize-none"></textarea>
-                </div>
-
-                <div className="mt-8 pt-8 border-t border-zinc-100">
-                  <h3 className="text-xs font-medium tracking-widest uppercase text-zinc-900 mb-4">Fotos y Modelos 3D</h3>
-                  <div className="mb-6 p-4 bg-zinc-50 border border-zinc-200 border-dashed">
-                    <label className="block text-xs font-medium text-zinc-700 mb-2">Fotos Normales (Varias)</label>
-                    <input name="images" type="file" accept="image/*" multiple className="w-full text-xs text-zinc-500" />
-                  </div>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                    <div className="p-4 bg-zinc-50 border border-zinc-200 border-dashed">
-                      <label className="block text-xs font-medium text-zinc-700 mb-2">.glb (Android/Web)</label>
-                      <input name="glb" type="file" accept=".glb" className="w-full text-xs text-zinc-500" />
+                  ) : (
+                    <div className="flex items-center gap-3">
+                      <h3 className="font-extrabold text-base sm:text-lg text-zinc-900">{catName}</h3>
+                      <span className="text-[11px] bg-zinc-200 text-zinc-700 px-2.5 py-0.5 rounded-full font-bold">
+                        {categoryItems.length} {categoryItems.length === 1 ? "producto" : "productos"}
+                      </span>
+                      <button 
+                        onClick={() => {
+                          setEditingCategoryOldName(catName);
+                          setEditingCategoryNewName(catName);
+                        }} 
+                        className="text-zinc-400 hover:text-zinc-700 p-1 transition-colors"
+                        title="Renombrar categoría"
+                      >
+                        <Edit2 size={14} />
+                      </button>
                     </div>
-                    <div className="p-4 bg-zinc-50 border border-zinc-200 border-dashed">
-                      <label className="block text-xs font-medium text-zinc-700 mb-2">.usdz (iOS)</label>
-                      <input name="usdz" type="file" accept=".usdz" className="w-full text-xs text-zinc-500" />
-                    </div>
+                  )}
+                  
+                  <div className="flex items-center gap-2">
+                    <button 
+                      onClick={() => handleOpenProductModal(catName)}
+                      className="text-xs font-bold text-emerald-800 hover:text-emerald-950 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 px-3 py-1.5 rounded-xl flex items-center gap-1.5 transition-colors"
+                    >
+                      <Plus size={14} /> 
+                      <span>Nuevo Producto</span>
+                    </button>
+                    <button 
+                      onClick={() => handleDeleteCategory(catName)} 
+                      className="text-zinc-400 hover:text-red-600 p-1.5 rounded-xl hover:bg-red-50 transition-colors"
+                      title="Eliminar categoría"
+                    >
+                      <Trash2 size={16} />
+                    </button>
                   </div>
                 </div>
-                <button type="submit" disabled={loading} className="w-full py-4 mt-8 bg-zinc-900 hover:bg-zinc-800 text-white text-xs tracking-widest uppercase transition-all disabled:opacity-50">
-                  {loading ? "Subiendo..." : "Publicar Plato"}
-                </button>
-              </form>
-            </div>
 
-            {/* LISTA DE PLATOS */}
-            <div className="space-y-8">
-              {uniqueCategories.length === 0 ? (
-                <p className="text-zinc-500 italic text-sm">No hay platos en el menú.</p>
-              ) : (
-                uniqueCategories.map(cat => (
-                  <div key={cat as string} className="bg-white border border-zinc-200 p-6 shadow-sm">
-                    <div className="flex justify-between items-center mb-4 border-b border-zinc-100 pb-2">
-                      <h3 className="text-lg font-light tracking-widest uppercase">{cat as string}</h3>
-                      <button onClick={() => renameCategory(cat as string)} className="text-xs text-blue-600 hover:underline tracking-widest uppercase">✏️ Renombrar</button>
+                {/* Items Grid */}
+                <div className="p-5 sm:p-6">
+                  {categoryItems.length === 0 ? (
+                    <div className="text-center py-10 text-zinc-400 text-xs italic bg-zinc-50 rounded-xl border border-dashed border-zinc-200 space-y-2">
+                      <Package size={28} className="mx-auto opacity-30 stroke-1" />
+                      <p>Sin productos registrados en esta categoría.</p>
+                      <button
+                        onClick={() => handleOpenProductModal(catName)}
+                        className="text-xs font-bold text-emerald-700 hover:underline"
+                      >
+                        + Agregar el primer producto
+                      </button>
                     </div>
-                    <div className="space-y-4">
-                      {menuItems.filter(item => (item.category || "Destacados") === cat).map(item => (
-                        <div key={item.id} className="flex justify-between items-center bg-zinc-50 p-4 border border-zinc-100">
-                          <div>
-                            <p className="font-medium text-sm">{item.name}</p>
-                            <p className="text-xs text-zinc-500">${item.price.toFixed(2)}</p>
-                          </div>
-                          <div className="flex gap-2">
-                            <button onClick={() => setEditingMenuItem(item)} className="w-8 h-8 flex items-center justify-center bg-white border border-zinc-200 hover:bg-zinc-100" title="Editar">✏️</button>
-                            <button onClick={() => deleteMenuItem(item.id)} className="w-8 h-8 flex items-center justify-center bg-white border border-red-200 text-red-500 hover:bg-red-50" title="Eliminar">🗑️</button>
+                  ) : (
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      {categoryItems.map(item => (
+                        <div key={item.id} className="border border-zinc-200 rounded-2xl p-4 flex gap-4 hover:border-zinc-300 transition-all bg-white shadow-2xs">
+                          <img 
+                            src={item.image_urls?.[0] || "/products/especial-corta-la-fruta.png"} 
+                            alt={item.name} 
+                            className="w-20 h-20 rounded-xl object-cover bg-zinc-100 border border-zinc-200 shrink-0"
+                          />
+                          <div className="flex-1 min-w-0 flex flex-col justify-between">
+                            <div>
+                              <div className="flex items-start justify-between gap-2 mb-1">
+                                <h4 className="font-bold text-sm text-zinc-900 leading-tight truncate">{item.name}</h4>
+                                <span className="font-mono text-xs font-extrabold text-zinc-900 bg-zinc-100 px-2 py-0.5 rounded-md shrink-0">
+                                  ${item.price.toLocaleString("es-AR")}
+                                </span>
+                              </div>
+                              <p className="text-zinc-500 text-xs leading-relaxed line-clamp-2">{item.description}</p>
+                            </div>
+                            
+                            <div className="mt-3 pt-2 border-t border-zinc-100 flex items-center justify-between text-[11px] text-zinc-500">
+                              {item.glburl ? (
+                                <span className="flex items-center gap-1 font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-md border border-emerald-100">
+                                  <Box size={13} /> Con Modelo 3D
+                                </span>
+                              ) : (
+                                <span className="text-zinc-400 text-[10px]">Solo imagen</span>
+                              )}
+                              
+                              <div className="flex items-center gap-1">
+                                <button 
+                                  onClick={() => handleOpenProductModal(item.category, item)} 
+                                  className="p-1.5 text-zinc-500 hover:text-zinc-900 rounded-lg hover:bg-zinc-100 transition-colors"
+                                  title="Editar producto"
+                                >
+                                  <Edit2 size={14} />
+                                </button>
+                                <button 
+                                  onClick={() => handleDeleteProduct(item.id, item.name)} 
+                                  className="p-1.5 text-zinc-400 hover:text-red-600 rounded-lg hover:bg-red-50 transition-colors"
+                                  title="Eliminar producto"
+                                >
+                                  <Trash2 size={14} />
+                                </button>
+                              </div>
+                            </div>
                           </div>
                         </div>
                       ))}
                     </div>
-                  </div>
-                ))
-              )}
-            </div>
-
-            {/* Modal Editar Plato */}
-            {editingMenuItem && (
-              <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-                <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={() => setEditingMenuItem(null)}></div>
-                <div className="relative bg-white w-full max-w-lg shadow-2xl flex flex-col">
-                  <div className="p-6 border-b border-zinc-100 flex justify-between items-center bg-zinc-50">
-                    <h2 className="font-light text-xl tracking-wide uppercase">Editar Plato</h2>
-                    <button onClick={() => setEditingMenuItem(null)} className="text-zinc-400 hover:text-zinc-900 text-2xl font-light">&times;</button>
-                  </div>
-                  <form onSubmit={saveEditedMenuItem} className="p-6 space-y-6">
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                      <div>
-                        <label className="block text-xs font-medium tracking-widest uppercase text-zinc-500 mb-2">Nombre</label>
-                        <input name="name" defaultValue={editingMenuItem.name} type="text" required className="w-full px-4 py-3 border border-zinc-200 focus:border-zinc-900 outline-none" />
-                      </div>
-                      <div>
-                        <label className="block text-xs font-medium tracking-widest uppercase text-zinc-500 mb-2">Precio ($)</label>
-                        <input name="price" defaultValue={editingMenuItem.price} type="number" step="0.01" required className="w-full px-4 py-3 border border-zinc-200 focus:border-zinc-900 outline-none" />
-                      </div>
-                      <div>
-                        <label className="block text-xs font-medium tracking-widest uppercase text-zinc-500 mb-2">Escala AR (1 = 100%)</label>
-                        <input name="scale" defaultValue={editingMenuItem.scale || 1} type="number" step="0.01" required className="w-full px-4 py-3 border border-zinc-200 focus:border-zinc-900 outline-none" />
-                      </div>
-                    </div>
-                    <div>
-                      <label className="block text-xs font-medium tracking-widest uppercase text-zinc-500 mb-2">Categoría</label>
-                      <input name="category" list="edit-category-list" defaultValue={editingMenuItem.category || "Destacados"} required className="w-full px-4 py-3 border border-zinc-200 focus:border-zinc-900 outline-none bg-white" />
-                      <datalist id="edit-category-list">
-                        {uniqueCategories.map(cat => <option key={cat as string} value={cat as string} />)}
-                      </datalist>
-                    </div>
-                    <div>
-                      <label className="block text-xs font-medium tracking-widest uppercase text-zinc-500 mb-2">Descripción</label>
-                      <textarea name="description" defaultValue={editingMenuItem.description} required rows={3} className="w-full px-4 py-3 border border-zinc-200 focus:border-zinc-900 outline-none resize-none"></textarea>
-                    </div>
-                    <p className="text-xs text-zinc-400 italic">Nota: Para cambiar foto/modelo 3D, borra el plato y créalo de nuevo.</p>
-                    <button type="submit" disabled={loading} className="w-full py-4 bg-zinc-900 hover:bg-zinc-800 text-white text-xs tracking-widest uppercase transition-all disabled:opacity-50">
-                      {loading ? "Guardando..." : "Guardar Cambios"}
-                    </button>
-                  </form>
+                  )}
                 </div>
-              </div>
-            )}
-          </div>
-        )}
 
-        {/* ========================================================================= */}
-        {/* TAB 4: CAJA E HISTORIAL */}
-        {/* ========================================================================= */}
-        {activeTab === "caja" && (
-          <div className="space-y-8">
-            <div className="bg-zinc-900 text-white p-8 flex justify-between items-center shadow-lg">
+              </div>
+            );
+          })}
+        </div>
+
+      </main>
+
+      {/* Modal Add / Edit Product */}
+      {editingProduct && (
+        <div className="fixed inset-0 bg-zinc-900/60 backdrop-blur-xs z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-3xl w-full max-w-lg overflow-hidden shadow-2xl border border-zinc-200 flex flex-col max-h-[90vh] animate-in fade-in zoom-in-95 duration-200">
+            
+            <div className="p-5 border-b border-zinc-200 flex justify-between items-center bg-zinc-50">
               <div>
-                <h2 className="text-sm tracking-widest uppercase font-medium opacity-80 mb-1">Total Ingresos</h2>
-                <p className="text-4xl font-light">
-                  ${paidOrders.reduce((sum, o) => sum + Number(o.total), 0).toFixed(2)}
-                </p>
+                <h3 className="font-extrabold text-base text-zinc-900">
+                  {editingProduct.id ? "Editar Producto & Archivos" : "Nuevo Producto & Modelo 3D"}
+                </h3>
+                <p className="text-xs text-zinc-500 font-medium">Categoría: {editingProduct.category}</p>
               </div>
-              <div className="text-right hidden sm:block">
-                <p className="text-sm tracking-widest uppercase font-medium opacity-80 mb-1">Órdenes Pagadas</p>
-                <p className="text-2xl font-light">{paidOrders.length}</p>
+              <button 
+                onClick={() => setEditingProduct(null)} 
+                className="w-8 h-8 rounded-full hover:bg-zinc-200 flex items-center justify-center text-zinc-500 transition-colors"
+              >
+                <X size={18} />
+              </button>
+            </div>
+            
+            <div className="p-5 sm:p-6 space-y-4 text-xs overflow-y-auto flex-1">
+              
+              {/* Category Select */}
+              <div>
+                <label className="block font-bold text-zinc-700 mb-1 uppercase tracking-wider text-[10px]">
+                  Categoría
+                </label>
+                <select
+                  value={editingProduct.category}
+                  onChange={e => setEditingProduct({ ...editingProduct, category: e.target.value })}
+                  className="w-full border border-zinc-300 focus:border-emerald-600 rounded-xl px-3 py-2 outline-none font-medium text-zinc-800 bg-white"
+                >
+                  {categoriesList.map(cat => (
+                    <option key={cat} value={cat}>{cat}</option>
+                  ))}
+                </select>
               </div>
+
+              {/* Name */}
+              <div>
+                <label className="block font-bold text-zinc-700 mb-1 uppercase tracking-wider text-[10px]">
+                  Nombre del producto *
+                </label>
+                <input 
+                  type="text" 
+                  value={editingProduct.name}
+                  onChange={e => setEditingProduct({ ...editingProduct, name: e.target.value })}
+                  className="w-full border border-zinc-300 focus:border-emerald-600 rounded-xl px-3 py-2 outline-none font-medium text-zinc-900"
+                  placeholder="Ej: Vaso Sandía y Melón"
+                />
+              </div>
+
+              {/* Description */}
+              <div>
+                <label className="block font-bold text-zinc-700 mb-1 uppercase tracking-wider text-[10px]">
+                  Descripción / Ingredientes
+                </label>
+                <textarea 
+                  value={editingProduct.description}
+                  onChange={e => setEditingProduct({ ...editingProduct, description: e.target.value })}
+                  className="w-full border border-zinc-300 focus:border-emerald-600 rounded-xl px-3 py-2 outline-none resize-none h-20 font-medium text-zinc-800"
+                  placeholder="Detalles de los ingredientes frescos, preparación o tamaño..."
+                />
+              </div>
+
+              {/* Price */}
+              <div>
+                <label className="block font-bold text-zinc-700 mb-1 uppercase tracking-wider text-[10px]">
+                  Precio ($ ARS) *
+                </label>
+                <input 
+                  type="number" 
+                  value={editingProduct.price || ""}
+                  onChange={e => setEditingProduct({ ...editingProduct, price: Number(e.target.value) })}
+                  className="w-full border border-zinc-300 focus:border-emerald-600 rounded-xl px-3 py-2 outline-none font-mono font-bold text-zinc-900"
+                  placeholder="3200"
+                />
+              </div>
+
+              {/* Image Upload / URL */}
+              <div className="bg-zinc-50 p-4 rounded-2xl border border-zinc-200/80 space-y-2">
+                <label className="font-bold text-zinc-800 flex items-center justify-between text-xs">
+                  <span className="flex items-center gap-1.5">
+                    <ImageIcon size={16} className="text-zinc-500" />
+                    Foto del Producto
+                  </span>
+                  {editingProduct.imageUrl && (
+                    <span className="text-[10px] text-emerald-600 font-bold">✓ Imagen vinculada</span>
+                  )}
+                </label>
+
+                {editingProduct.imageUrl && (
+                  <div className="flex items-center gap-3 bg-white p-2 rounded-xl border border-zinc-200">
+                    <img 
+                      src={editingProduct.imageUrl} 
+                      alt="Preview" 
+                      className="w-12 h-12 rounded-lg object-cover bg-zinc-100" 
+                    />
+                    <div className="flex-1 min-w-0">
+                      <p className="text-[10px] text-zinc-400 font-mono truncate">{editingProduct.imageUrl}</p>
+                    </div>
+                    <button 
+                      onClick={() => setEditingProduct({ ...editingProduct, imageUrl: "" })}
+                      className="p-1 text-zinc-400 hover:text-red-600"
+                      title="Quitar imagen"
+                    >
+                      <Trash2 size={14} />
+                    </button>
+                  </div>
+                )}
+
+                <div className="flex items-center gap-2 pt-1">
+                  <input 
+                    type="file" 
+                    ref={imageInputRef} 
+                    accept="image/*" 
+                    onChange={handleImageFileChange} 
+                    className="hidden" 
+                  />
+                  <button 
+                    type="button"
+                    disabled={isUploadingImage}
+                    onClick={() => imageInputRef.current?.click()}
+                    className="bg-white hover:bg-zinc-100 border border-zinc-300 text-zinc-700 px-3 py-2 rounded-xl font-bold flex items-center gap-1.5 transition-colors text-xs"
+                  >
+                    {isUploadingImage ? (
+                      <>
+                        <Loader2 size={14} className="animate-spin text-emerald-600" />
+                        <span>Subiendo a Supabase...</span>
+                      </>
+                    ) : (
+                      <>
+                        <Upload size={14} />
+                        <span>Subir Foto</span>
+                      </>
+                    )}
+                  </button>
+
+                  <input 
+                    type="text" 
+                    value={editingProduct.imageUrl}
+                    onChange={e => setEditingProduct({ ...editingProduct, imageUrl: e.target.value })}
+                    placeholder="O pegar URL externa (https://...)"
+                    className="flex-1 border border-zinc-300 focus:border-emerald-600 rounded-xl px-3 py-2 outline-none font-mono text-[11px] bg-white"
+                  />
+                </div>
+              </div>
+
+              {/* 3D Model GLB Upload / URL */}
+              <div className="bg-emerald-50/50 p-4 rounded-2xl border border-emerald-200/80 space-y-2">
+                <div className="flex items-center justify-between">
+                  <label className="font-bold text-zinc-900 flex items-center gap-1.5 text-xs">
+                    <Box size={16} className="text-emerald-700" />
+                    Modelo 3D para Realidad Aumentada (.glb)
+                  </label>
+                  <label className="flex items-center gap-1.5 cursor-pointer text-xs font-bold text-emerald-800">
+                    <input 
+                      type="checkbox" 
+                      checked={editingProduct.has3D}
+                      onChange={e => setEditingProduct({ ...editingProduct, has3D: e.target.checked })}
+                      className="rounded accent-emerald-700 w-4 h-4 cursor-pointer"
+                    />
+                    <span>Activar 3D</span>
+                  </label>
+                </div>
+
+                {editingProduct.has3D && (
+                  <div className="space-y-2 pt-2 animate-in fade-in duration-150">
+                    <p className="text-[11px] text-zinc-500">
+                      Subí tu archivo <code>.glb</code>. Será optimizado automáticamente para verse plano y perfecto en Realidad Aumentada.
+                    </p>
+
+                    {editingProduct.glbUrl && (
+                      <div className="flex items-center gap-2 bg-white p-2 rounded-xl border border-emerald-200 text-xs font-mono">
+                        <Box size={14} className="text-emerald-600 shrink-0" />
+                        <span className="truncate flex-1 text-[10px] text-zinc-600">{editingProduct.glbUrl}</span>
+                        <button 
+                          onClick={() => setEditingProduct({ ...editingProduct, glbUrl: "" })}
+                          className="p-1 text-zinc-400 hover:text-red-600"
+                        >
+                          <Trash2 size={14} />
+                        </button>
+                      </div>
+                    )}
+
+                    <div className="flex items-center gap-2">
+                      <input 
+                        type="file" 
+                        ref={glbInputRef} 
+                        accept=".glb" 
+                        onChange={handleGlbFileChange} 
+                        className="hidden" 
+                      />
+                      <button 
+                        type="button"
+                        disabled={isUploadingGlb}
+                        onClick={() => glbInputRef.current?.click()}
+                        className="bg-white hover:bg-emerald-50 border border-emerald-300 text-emerald-900 px-3 py-2 rounded-xl font-bold flex items-center gap-1.5 transition-colors text-xs"
+                      >
+                        {isUploadingGlb ? (
+                          <>
+                            <Loader2 size={14} className="animate-spin text-emerald-600" />
+                            <span>Procesando y Subiendo 3D...</span>
+                          </>
+                        ) : (
+                          <>
+                            <Upload size={14} />
+                            <span>Subir Archivo .glb</span>
+                          </>
+                        )}
+                      </button>
+
+                      <input 
+                        type="text" 
+                        value={editingProduct.glbUrl}
+                        onChange={e => setEditingProduct({ ...editingProduct, glbUrl: e.target.value })}
+                        placeholder="O pegar URL del modelo (/uploads/...)"
+                        className="flex-1 border border-zinc-300 focus:border-emerald-600 rounded-xl px-3 py-2 outline-none font-mono text-[11px] bg-white"
+                      />
+                    </div>
+                  </div>
+                )}
+              </div>
+
             </div>
 
-            <div>
-              <h3 className="text-sm tracking-widest uppercase font-medium border-b border-zinc-200 pb-2 mb-6">Historial de Ventas</h3>
-              {paidOrders.length === 0 ? (
-                <p className="text-zinc-500 italic text-sm">No hay ventas registradas.</p>
-              ) : (
-                <div className="space-y-4">
-                  {paidOrders.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()).map(order => {
-                    const method = order.status.replace('Pagado - ', '');
-                    const isConsolidated = order.status.includes('-');
-                    return (
-                    <div key={order.id} className="bg-white border border-zinc-200 p-6 shadow-sm flex flex-col md:flex-row md:justify-between md:items-center gap-4">
-                      <div>
-                        <div className="flex items-center gap-3 mb-2">
-                          <span className="bg-green-100 text-green-800 text-[10px] px-2 py-1 tracking-widest uppercase font-medium">Pagado</span>
-                          {isConsolidated && <span className="bg-zinc-100 text-zinc-800 text-[10px] px-2 py-1 tracking-widest uppercase font-medium">{method}</span>}
-                          <span className="text-sm font-medium">{order.table_number}</span>
-                          <span className="text-xs text-zinc-400">{new Date(order.created_at).toLocaleString()}</span>
-                        </div>
-                        <div className="text-sm text-zinc-600">
-                          {order.items.map((item: any, i: number) => (
-                            <span key={i}>
-                              {item.quantity}x {item.name}{i < order.items.length - 1 ? ', ' : ''}
-                            </span>
-                          ))}
-                        </div>
-                      </div>
-                      <div className="text-left md:text-right">
-                        <p className="text-xs tracking-widest uppercase text-zinc-500 mb-1">Total Cobrado</p>
-                        <p className="text-xl font-medium">${Number(order.total).toFixed(2)}</p>
-                      </div>
-                    </div>
-                  )})}
-                </div>
-              )}
+            {/* Modal Footer */}
+            <div className="p-4 bg-zinc-50 border-t border-zinc-200 flex justify-end gap-2 shrink-0">
+              <button 
+                onClick={() => setEditingProduct(null)}
+                className="px-4 py-2.5 rounded-xl text-zinc-600 hover:bg-zinc-200 text-xs font-bold transition-colors"
+              >
+                Cancelar
+              </button>
+              <button 
+                onClick={handleSaveProduct}
+                disabled={!editingProduct.name || !editingProduct.price || isUploadingImage || isUploadingGlb}
+                className="px-6 py-2.5 rounded-xl bg-emerald-700 hover:bg-emerald-800 text-white text-xs font-bold transition-all disabled:opacity-50 shadow-md flex items-center gap-2"
+              >
+                <Save size={16} />
+                <span>Guardar Producto</span>
+              </button>
             </div>
+
           </div>
-        )}
-      </div>
+        </div>
+      )}
+
     </div>
   );
 }
