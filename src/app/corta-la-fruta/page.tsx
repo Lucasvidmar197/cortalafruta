@@ -28,6 +28,7 @@ interface Product {
   name: string;
   description: string;
   price: number;
+  promoPrice?: number | null;
   badge?: string;
   badgeType?: "strawberry" | "kiwi" | "banana";
   imageUrl: string;
@@ -94,12 +95,17 @@ function buildCategoriesFromItems(rawItems: any[]): Category[] {
     if (!categoryMap.has(catName)) {
       categoryMap.set(catName, []);
     }
+
+    const regPrice = Number(row.price) || 0;
+    const rawPromo = row.promo_price ?? (row.usdzurl && !isNaN(Number(row.usdzurl)) ? Number(row.usdzurl) : null);
+    const promoPrice = rawPromo && Number(rawPromo) > 0 && Number(rawPromo) < regPrice ? Number(rawPromo) : null;
     
     categoryMap.get(catName)!.push({
       id: row.id,
       name: row.name,
       description: row.description || "",
-      price: Number(row.price) || 0,
+      price: regPrice,
+      promoPrice: promoPrice,
       badge: row.glburl ? "★ Destacado 3D" : undefined,
       badgeType: "strawberry",
       imageUrl: (row.image_urls && row.image_urls[0]) || "/products/especial-corta-la-fruta.png",
@@ -442,8 +448,15 @@ export default function CortaLaFrutaPublicPage() {
     setCart((prevCart) => prevCart.filter(item => item.id !== cartItemIdOrProductId && item.product.id !== cartItemIdOrProductId));
   };
 
+  const getProductEffectivePrice = (prod: Product) => {
+    if (prod.promoPrice && prod.promoPrice > 0 && prod.promoPrice < prod.price) {
+      return prod.promoPrice;
+    }
+    return prod.price;
+  };
+
   const totalCartCount = cart.reduce((sum, item) => sum + item.quantity, 0);
-  const totalCartPrice = cart.reduce((sum, item) => sum + (item.product.price * item.quantity), 0);
+  const totalCartPrice = cart.reduce((sum, item) => sum + (getProductEffectivePrice(item.product) * item.quantity), 0);
 
   // Generate WhatsApp Order Link (Direct API & Bulletproof formatting)
   const handleWhatsAppCheckout = () => {
@@ -452,8 +465,12 @@ export default function CortaLaFrutaPublicPage() {
     let message = `*Hola Corta la Fruta!* 🍓\nQuisiera realizar el siguiente pedido:\n\n`;
     
     cart.forEach(item => {
-      const lineTotal = item.product.price * item.quantity;
-      message += `• *${item.quantity}x ${item.product.name}* — $${lineTotal.toLocaleString("es-AR")}\n`;
+      const effectiveUnitPrice = getProductEffectivePrice(item.product);
+      const lineTotal = effectiveUnitPrice * item.quantity;
+      const isOffer = item.product.promoPrice && item.product.promoPrice < item.product.price;
+      const promoTag = isOffer ? " *(OFERTA)*" : "";
+
+      message += `• *${item.quantity}x ${item.product.name}* — $${lineTotal.toLocaleString("es-AR")}${promoTag}\n`;
       if (item.notes && item.notes.trim()) {
         message += `   ↳ _Aclaración: ${item.notes.trim()}_\n`;
       }
@@ -829,12 +846,19 @@ export default function CortaLaFrutaPublicPage() {
                         />
                       )}
                       
-                      {/* Badge Overlay */}
-                      {product.badge && (
-                        <div className="absolute top-1.5 left-1.5 bg-rose-500 text-white text-[8px] sm:text-[9px] font-extrabold uppercase px-1.5 py-0.5 rounded shadow-2xs z-10 pointer-events-none">
-                          {product.badge}
-                        </div>
-                      )}
+                      {/* Badge Overlay & OFERTA */}
+                      <div className="absolute top-1.5 left-1.5 flex flex-col gap-1 z-10 pointer-events-none">
+                        {product.promoPrice && product.promoPrice < product.price && (
+                          <div className="bg-rose-600 text-white text-[8px] sm:text-[9px] font-black uppercase px-2 py-0.5 rounded shadow-md flex items-center gap-0.5">
+                            <span>🔥</span> OFERTA
+                          </div>
+                        )}
+                        {product.badge && (
+                          <div className="bg-rose-500 text-white text-[8px] sm:text-[9px] font-extrabold uppercase px-1.5 py-0.5 rounded shadow-2xs">
+                            {product.badge}
+                          </div>
+                        )}
+                      </div>
 
                       {/* 3D Button */}
                       {product.has3DModel && (
@@ -854,9 +878,20 @@ export default function CortaLaFrutaPublicPage() {
                     {/* Product Details (Mercado Libre Price-First Hierarchy) */}
                     <div className="pt-2 sm:pt-3 flex-1 flex flex-col justify-between">
                       <div>
-                        <span className="font-extrabold text-sm sm:text-base text-zinc-900 font-mono block">
-                          ${product.price.toLocaleString("es-AR")}
-                        </span>
+                        {product.promoPrice && product.promoPrice < product.price ? (
+                          <div className="flex items-baseline gap-1.5">
+                            <span className="text-xs font-mono line-through text-zinc-400">
+                              ${product.price.toLocaleString("es-AR")}
+                            </span>
+                            <span className="font-extrabold text-sm sm:text-base text-rose-600 font-mono">
+                              ${product.promoPrice.toLocaleString("es-AR")}
+                            </span>
+                          </div>
+                        ) : (
+                          <span className="font-extrabold text-sm sm:text-base text-zinc-900 font-mono block">
+                            ${product.price.toLocaleString("es-AR")}
+                          </span>
+                        )}
 
                         <h4 className="font-semibold text-xs text-zinc-800 leading-snug line-clamp-2 mt-0.5 group-hover:text-rose-600 transition-colors">
                           {product.name}
@@ -1039,15 +1074,23 @@ export default function CortaLaFrutaPublicPage() {
                             className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
                           />
                         )}
-                        {product.badge && (
-                          <div className={`absolute top-1.5 left-1.5 text-[8px] sm:text-[9px] font-extrabold uppercase px-1.5 py-0.5 rounded shadow-2xs z-10 pointer-events-none ${
-                            product.badgeType === "strawberry" ? "bg-rose-500 text-white" :
-                            product.badgeType === "kiwi" ? "bg-emerald-600 text-white" :
-                            "bg-amber-500 text-white"
-                          }`}>
-                            {product.badge}
-                          </div>
-                        )}
+                        {/* Badge Overlay & OFERTA */}
+                        <div className="absolute top-1.5 left-1.5 flex flex-col gap-1 z-10 pointer-events-none">
+                          {product.promoPrice && product.promoPrice < product.price && (
+                            <div className="bg-rose-600 text-white text-[8px] sm:text-[9px] font-black uppercase px-2 py-0.5 rounded shadow-md flex items-center gap-0.5">
+                              <span>🔥</span> OFERTA
+                            </div>
+                          )}
+                          {product.badge && (
+                            <div className={`text-[8px] sm:text-[9px] font-extrabold uppercase px-1.5 py-0.5 rounded shadow-2xs ${
+                              product.badgeType === "strawberry" ? "bg-rose-500 text-white" :
+                              product.badgeType === "kiwi" ? "bg-emerald-600 text-white" :
+                              "bg-amber-500 text-white"
+                            }`}>
+                              {product.badge}
+                            </div>
+                          )}
+                        </div>
                         {product.has3DModel && (
                           <button
                             onClick={(e) => {
@@ -1064,9 +1107,20 @@ export default function CortaLaFrutaPublicPage() {
 
                       <div className="pt-2 sm:pt-3 flex-1 flex flex-col justify-between">
                         <div>
-                          <span className="font-extrabold text-sm sm:text-base text-zinc-900 font-mono block">
-                            ${product.price.toLocaleString("es-AR")}
-                          </span>
+                          {product.promoPrice && product.promoPrice < product.price ? (
+                            <div className="flex items-baseline gap-1.5">
+                              <span className="text-xs font-mono line-through text-zinc-400">
+                                ${product.price.toLocaleString("es-AR")}
+                              </span>
+                              <span className="font-extrabold text-sm sm:text-base text-rose-600 font-mono">
+                                ${product.promoPrice.toLocaleString("es-AR")}
+                              </span>
+                            </div>
+                          ) : (
+                            <span className="font-extrabold text-sm sm:text-base text-zinc-900 font-mono block">
+                              ${product.price.toLocaleString("es-AR")}
+                            </span>
+                          )}
 
                           <h4 className="font-semibold text-xs text-zinc-800 leading-snug line-clamp-2 mt-0.5 group-hover:text-rose-600 transition-colors">
                             {product.name}
@@ -1185,12 +1239,19 @@ export default function CortaLaFrutaPublicPage() {
                 <X size={18} />
               </button>
 
-              {/* Badge */}
-              {selectedProduct.badge && (
-                <div className="absolute top-3 left-3 bg-rose-500 text-white text-xs font-extrabold uppercase px-3 py-1 rounded-lg shadow-md">
-                  {selectedProduct.badge}
-                </div>
-              )}
+              {/* Badges Overlay */}
+              <div className="absolute top-3 left-3 flex flex-col gap-1.5 z-10 pointer-events-none">
+                {selectedProduct.promoPrice && selectedProduct.promoPrice < selectedProduct.price && (
+                  <div className="bg-rose-600 text-white text-xs font-black uppercase px-3 py-1 rounded-lg shadow-md flex items-center gap-1">
+                    <span>🔥</span> OFERTA
+                  </div>
+                )}
+                {selectedProduct.badge && (
+                  <div className="bg-rose-500 text-white text-xs font-extrabold uppercase px-3 py-1 rounded-lg shadow-md">
+                    {selectedProduct.badge}
+                  </div>
+                )}
+              </div>
             </div>
 
             {/* Modal Content */}
@@ -1200,9 +1261,22 @@ export default function CortaLaFrutaPublicPage() {
                   <h3 className="font-extrabold text-xl sm:text-2xl text-zinc-900 leading-tight">
                     {selectedProduct.name}
                   </h3>
-                  <span className="font-extrabold text-lg text-rose-600 font-mono bg-rose-50 border border-rose-100 px-3 py-1 rounded-xl shrink-0">
-                    ${selectedProduct.price.toLocaleString("es-AR")}
-                  </span>
+                  <div className="text-right shrink-0">
+                    {selectedProduct.promoPrice && selectedProduct.promoPrice < selectedProduct.price ? (
+                      <div className="flex flex-col items-end">
+                        <span className="text-xs font-mono line-through text-zinc-400">
+                          ${selectedProduct.price.toLocaleString("es-AR")}
+                        </span>
+                        <span className="font-extrabold text-lg sm:text-xl text-rose-600 font-mono bg-rose-50 border border-rose-200 px-3 py-0.5 rounded-xl shadow-2xs">
+                          ${selectedProduct.promoPrice.toLocaleString("es-AR")}
+                        </span>
+                      </div>
+                    ) : (
+                      <span className="font-extrabold text-lg text-rose-600 font-mono bg-rose-50 border border-rose-100 px-3 py-1 rounded-xl shrink-0">
+                        ${selectedProduct.price.toLocaleString("es-AR")}
+                      </span>
+                    )}
+                  </div>
                 </div>
                 {selectedProduct.categoryName && (
                   <span className="text-xs font-extrabold uppercase text-emerald-700 block">
@@ -1323,9 +1397,20 @@ export default function CortaLaFrutaPublicPage() {
             <div className="p-6">
               <div className="flex justify-between items-start mb-2">
                 <h4 className="font-extrabold text-lg text-zinc-900">{active3DModal.name}</h4>
-                <span className="font-mono font-extrabold text-base text-rose-600 bg-rose-50 border border-rose-100 px-3 py-1 rounded-xl">
-                  ${active3DModal.price.toLocaleString("es-AR")}
-                </span>
+                {active3DModal.promoPrice && active3DModal.promoPrice < active3DModal.price ? (
+                  <div className="flex flex-col items-end">
+                    <span className="text-xs font-mono line-through text-zinc-400">
+                      ${active3DModal.price.toLocaleString("es-AR")}
+                    </span>
+                    <span className="font-mono font-extrabold text-base text-rose-600 bg-rose-50 border border-rose-200 px-3 py-0.5 rounded-xl shadow-2xs">
+                      ${active3DModal.promoPrice.toLocaleString("es-AR")}
+                    </span>
+                  </div>
+                ) : (
+                  <span className="font-mono font-extrabold text-base text-rose-600 bg-rose-50 border border-rose-100 px-3 py-1 rounded-xl">
+                    ${active3DModal.price.toLocaleString("es-AR")}
+                  </span>
+                )}
               </div>
               <p className="text-xs text-zinc-600 leading-relaxed mb-6 font-normal">
                 {active3DModal.description}
@@ -1434,9 +1519,27 @@ export default function CortaLaFrutaPublicPage() {
                           </div>
                           <div className="flex-1 min-w-0">
                             <h4 className="font-bold text-sm text-zinc-900 truncate">{product.name}</h4>
-                            <span className="text-xs font-mono font-extrabold text-rose-600">
-                              ${(product.price * quantity).toLocaleString("es-AR")}
-                            </span>
+                            {(() => {
+                              const effectivePrice = getProductEffectivePrice(product);
+                              const isOffer = product.promoPrice && product.promoPrice < product.price;
+                              return (
+                                <div className="flex items-center gap-1.5 mt-0.5">
+                                  {isOffer && (
+                                    <span className="text-[10px] font-mono line-through text-zinc-400">
+                                      ${(product.price * quantity).toLocaleString("es-AR")}
+                                    </span>
+                                  )}
+                                  <span className="text-xs font-mono font-extrabold text-rose-600">
+                                    ${(effectivePrice * quantity).toLocaleString("es-AR")}
+                                  </span>
+                                  {isOffer && (
+                                    <span className="text-[9px] font-black uppercase text-rose-700 bg-rose-50 border border-rose-200 px-1.5 py-0.2 rounded">
+                                      Oferta
+                                    </span>
+                                  )}
+                                </div>
+                              );
+                            })()}
                             
                             <div className="flex items-center gap-2 mt-2">
                               <div className="flex items-center gap-1.5 bg-zinc-100 rounded-lg p-0.5">

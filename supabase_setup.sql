@@ -9,12 +9,16 @@ CREATE TABLE IF NOT EXISTS public.menu_items (
   name TEXT NOT NULL,
   description TEXT DEFAULT '',
   price NUMERIC DEFAULT 0,
+  promo_price NUMERIC,
   scale NUMERIC DEFAULT 1,
   glburl TEXT,
   usdzurl TEXT,
   category TEXT DEFAULT 'Vasos de Fruta Cortada',
   image_urls TEXT[] DEFAULT '{}'
 );
+
+-- Si la tabla ya fue creada previamente, asegurarse de agregar la columna promo_price
+ALTER TABLE public.menu_items ADD COLUMN IF NOT EXISTS promo_price NUMERIC;
 
 ALTER TABLE public.menu_items ENABLE ROW LEVEL SECURITY;
 

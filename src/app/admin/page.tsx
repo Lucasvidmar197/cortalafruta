@@ -16,6 +16,7 @@ interface MenuItem {
   name: string;
   description: string;
   price: number;
+  promo_price?: number | null;
   scale?: number;
   glburl?: string | null;
   usdzurl?: string | null;
@@ -105,6 +106,8 @@ export default function CortaLaFrutaAdminPage() {
     name: string;
     description: string;
     price: number;
+    hasPromo: boolean;
+    promoPrice: number | "";
     category: string;
     imageUrl: string;
     glbUrl: string;
@@ -286,11 +289,16 @@ export default function CortaLaFrutaAdminPage() {
   // Product Actions
   const handleOpenProductModal = (category: string, item: MenuItem | null = null) => {
     if (item) {
+      const rawPromo = item.promo_price ?? (item.usdzurl && !isNaN(Number(item.usdzurl)) ? Number(item.usdzurl) : null);
+      const isPromo = !!(rawPromo && Number(rawPromo) > 0);
+
       setEditingProduct({
         id: item.id,
         name: item.name,
         description: item.description || "",
         price: item.price,
+        hasPromo: isPromo,
+        promoPrice: isPromo ? Number(rawPromo) : "",
         category: item.category || category,
         imageUrl: item.image_urls?.[0] || "",
         glbUrl: item.glburl || "",
@@ -302,6 +310,8 @@ export default function CortaLaFrutaAdminPage() {
         name: "",
         description: "",
         price: 0,
+        hasPromo: false,
+        promoPrice: "",
         category: category,
         imageUrl: "",
         glbUrl: "",
@@ -366,31 +376,52 @@ export default function CortaLaFrutaAdminPage() {
       return;
     }
 
-    const payload = {
+    const promoVal = editingProduct.hasPromo && editingProduct.promoPrice && Number(editingProduct.promoPrice) > 0
+      ? Number(editingProduct.promoPrice)
+      : null;
+
+    if (promoVal && promoVal >= editingProduct.price) {
+      alert("El precio de promoción debe ser menor al precio normal.");
+      return;
+    }
+
+    const payload: any = {
       name: editingProduct.name.trim(),
       description: editingProduct.description.trim(),
       price: Number(editingProduct.price),
       category: editingProduct.category,
       glburl: editingProduct.has3D && editingProduct.glbUrl.trim() ? editingProduct.glbUrl.trim() : null,
       image_urls: editingProduct.imageUrl.trim() ? [editingProduct.imageUrl.trim()] : [],
+      usdzurl: promoVal ? String(promoVal) : null,
+      promo_price: promoVal,
     };
 
     try {
       if (editingProduct.id) {
         // Update existing product
-        const { error } = await supabase
+        let { error } = await supabase
           .from("menu_items")
           .update(payload)
           .eq("id", editingProduct.id);
 
+        if (error && error.code === "PGRST204") {
+          // promo_price column not yet added to SQL schema, save with usdzurl fallback
+          delete payload.promo_price;
+          const retry = await supabase
+            .from("menu_items")
+            .update(payload)
+            .eq("id", editingProduct.id);
+          error = retry.error;
+        }
+
         if (error) throw error;
 
-        setItems(items.map(i => i.id === editingProduct.id ? { ...i, ...payload } : i));
+        setItems(items.map(i => i.id === editingProduct.id ? { ...i, ...payload, promo_price: promoVal } : i));
         showToast("Producto actualizado correctamente");
       } else {
         // Insert new product
         const newId = `prod_${Date.now()}`;
-        const { error } = await supabase
+        let { error } = await supabase
           .from("menu_items")
           .insert({
             id: newId,
@@ -398,9 +429,21 @@ export default function CortaLaFrutaAdminPage() {
             scale: 1,
           });
 
+        if (error && error.code === "PGRST204") {
+          delete payload.promo_price;
+          const retry = await supabase
+            .from("menu_items")
+            .insert({
+              id: newId,
+              ...payload,
+              scale: 1,
+            });
+          error = retry.error;
+        }
+
         if (error) throw error;
 
-        setItems([...items, { id: newId, ...payload, scale: 1 }]);
+        setItems([...items, { id: newId, ...payload, scale: 1, promo_price: promoVal }]);
         showToast("Nuevo producto creado en Supabase");
       }
 
@@ -531,6 +574,10 @@ export default function CortaLaFrutaAdminPage() {
   // Total KPIs
   const totalProducts = items.length;
   const productsWith3D = items.filter(i => !!i.glburl).length;
+  const productsInPromo = items.filter(i => {
+    const raw = i.promo_price ?? (i.usdzurl && !isNaN(Number(i.usdzurl)) ? Number(i.usdzurl) : null);
+    return raw && Number(raw) > 0 && Number(raw) < i.price;
+  }).length;
 
   return (
     <div className="min-h-screen bg-[#FAF9F6] text-zinc-900 font-sans pb-24 selection:bg-rose-500 selection:text-white">
@@ -594,24 +641,34 @@ export default function CortaLaFrutaAdminPage() {
       <main className="max-w-6xl mx-auto px-4 md:px-6 py-8">
         
         {/* Dashboard KPI Grid */}
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-8">
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
           <div className="bg-white p-5 rounded-2xl border border-zinc-200 shadow-2xs flex items-center gap-4">
             <div className="w-11 h-11 rounded-xl bg-emerald-50 text-emerald-700 flex items-center justify-center font-bold">
               <Layers size={22} />
             </div>
             <div>
-              <p className="text-[10px] text-zinc-500 font-extrabold uppercase tracking-wider">Categorías Activas</p>
+              <p className="text-[10px] text-zinc-500 font-extrabold uppercase tracking-wider">Categorías</p>
               <p className="text-2xl font-extrabold text-zinc-900 font-mono">{categoriesList.length}</p>
             </div>
           </div>
 
           <div className="bg-white p-5 rounded-2xl border border-zinc-200 shadow-2xs flex items-center gap-4">
-            <div className="w-11 h-11 rounded-xl bg-rose-50 text-rose-600 flex items-center justify-center font-bold">
+            <div className="w-11 h-11 rounded-xl bg-zinc-100 text-zinc-700 flex items-center justify-center font-bold">
               <Package size={22} />
             </div>
             <div>
-              <p className="text-[10px] text-zinc-500 font-extrabold uppercase tracking-wider">Productos en Carta</p>
+              <p className="text-[10px] text-zinc-500 font-extrabold uppercase tracking-wider">Productos</p>
               <p className="text-2xl font-extrabold text-zinc-900 font-mono">{totalProducts}</p>
+            </div>
+          </div>
+
+          <div className="bg-white p-5 rounded-2xl border border-zinc-200 shadow-2xs flex items-center gap-4">
+            <div className="w-11 h-11 rounded-xl bg-rose-50 text-rose-600 flex items-center justify-center font-bold">
+              <Sparkles size={22} />
+            </div>
+            <div>
+              <p className="text-[10px] text-zinc-500 font-extrabold uppercase tracking-wider">Ofertas Activas</p>
+              <p className="text-2xl font-extrabold text-rose-600 font-mono">{productsInPromo}</p>
             </div>
           </div>
 
@@ -621,17 +678,18 @@ export default function CortaLaFrutaAdminPage() {
                 <Box size={22} />
               </div>
               <div>
-                <p className="text-[10px] text-zinc-500 font-extrabold uppercase tracking-wider">Productos 3D / AR</p>
+                <p className="text-[10px] text-zinc-500 font-extrabold uppercase tracking-wider">3D / AR</p>
                 <p className="text-2xl font-extrabold text-zinc-900 font-mono">{productsWith3D}</p>
               </div>
             </div>
             
             <button 
               onClick={() => setIsAddingCategory(true)}
-              className="bg-emerald-700 hover:bg-emerald-800 text-white px-4 py-2.5 rounded-xl text-xs font-bold transition-all shadow-xs flex items-center gap-1.5 shrink-0"
+              className="bg-emerald-700 hover:bg-emerald-800 text-white px-3 py-2 rounded-xl text-xs font-bold transition-all shadow-xs flex items-center gap-1 shrink-0"
+              title="Nueva Categoría"
             >
               <Plus size={16} />
-              <span className="hidden lg:inline">Nueva Categoría</span>
+              <span className="hidden sm:inline">Nueva</span>
             </button>
           </div>
         </div>
@@ -766,9 +824,30 @@ export default function CortaLaFrutaAdminPage() {
                             <div>
                               <div className="flex items-start justify-between gap-2 mb-1">
                                 <h4 className="font-bold text-sm text-zinc-900 leading-tight truncate">{item.name}</h4>
-                                <span className="font-mono text-xs font-extrabold text-zinc-900 bg-zinc-100 px-2 py-0.5 rounded-md shrink-0">
-                                  ${item.price.toLocaleString("es-AR")}
-                                </span>
+                                {(() => {
+                                  const rawPromo = item.promo_price ?? (item.usdzurl && !isNaN(Number(item.usdzurl)) ? Number(item.usdzurl) : null);
+                                  const hasPromo = rawPromo && Number(rawPromo) > 0 && Number(rawPromo) < item.price;
+                                  if (hasPromo) {
+                                    return (
+                                      <div className="flex items-center gap-1.5 shrink-0">
+                                        <span className="font-mono text-[10px] line-through text-zinc-400">
+                                          ${item.price.toLocaleString("es-AR")}
+                                        </span>
+                                        <span className="font-mono text-xs font-extrabold text-rose-600 bg-rose-50 border border-rose-200 px-1.5 py-0.5 rounded-md">
+                                          ${Number(rawPromo).toLocaleString("es-AR")}
+                                        </span>
+                                        <span className="bg-rose-600 text-white text-[9px] font-black px-1.5 py-0.5 rounded shadow-xs">
+                                          OFERTA
+                                        </span>
+                                      </div>
+                                    );
+                                  }
+                                  return (
+                                    <span className="font-mono text-xs font-extrabold text-zinc-900 bg-zinc-100 px-2 py-0.5 rounded-md shrink-0">
+                                      ${item.price.toLocaleString("es-AR")}
+                                    </span>
+                                  );
+                                })()}
                               </div>
                               <p className="text-zinc-500 text-xs leading-relaxed line-clamp-2">{item.description}</p>
                             </div>
@@ -881,7 +960,7 @@ export default function CortaLaFrutaAdminPage() {
               {/* Price */}
               <div>
                 <label className="block font-bold text-zinc-700 mb-1 uppercase tracking-wider text-[10px]">
-                  Precio ($ ARS) *
+                  Precio Regular ($ ARS) *
                 </label>
                 <input 
                   type="number" 
@@ -890,6 +969,64 @@ export default function CortaLaFrutaAdminPage() {
                   className="w-full border border-zinc-300 focus:border-emerald-600 rounded-xl px-3 py-2 outline-none font-mono font-bold text-zinc-900"
                   placeholder="3200"
                 />
+              </div>
+
+              {/* Promociones / Precio de Oferta */}
+              <div className="bg-rose-50/70 p-4 rounded-2xl border border-rose-200/80 space-y-3">
+                <div className="flex items-center justify-between">
+                  <label className="font-extrabold text-rose-950 flex items-center gap-1.5 text-xs">
+                    <Sparkles size={16} className="text-rose-600" />
+                    ¿Poner en Promoción / Oferta?
+                  </label>
+                  <label className="flex items-center gap-1.5 cursor-pointer text-xs font-bold text-rose-800">
+                    <input 
+                      type="checkbox" 
+                      checked={editingProduct.hasPromo}
+                      onChange={e => setEditingProduct({ ...editingProduct, hasPromo: e.target.checked })}
+                      className="rounded accent-rose-600 w-4 h-4 cursor-pointer"
+                    />
+                    <span>Activar Oferta</span>
+                  </label>
+                </div>
+
+                {editingProduct.hasPromo && (
+                  <div className="space-y-2.5 pt-1 animate-in fade-in duration-150">
+                    <div>
+                      <label className="block font-bold text-rose-900 mb-1 uppercase tracking-wider text-[10px]">
+                        Precio de Promoción / Oferta ($ ARS) *
+                      </label>
+                      <input 
+                        type="number" 
+                        value={editingProduct.promoPrice}
+                        onChange={e => setEditingProduct({ ...editingProduct, promoPrice: e.target.value ? Number(e.target.value) : "" })}
+                        className="w-full border border-rose-300 focus:border-rose-600 focus:ring-1 focus:ring-rose-600 rounded-xl px-3 py-2 outline-none font-mono font-extrabold text-rose-700 bg-white"
+                        placeholder="Ej: 2800"
+                      />
+                    </div>
+
+                    {editingProduct.price > 0 && Number(editingProduct.promoPrice) > 0 && Number(editingProduct.promoPrice) < editingProduct.price && (
+                      <div className="p-2.5 bg-white rounded-xl border border-rose-200 text-xs flex items-center justify-between shadow-2xs">
+                        <div className="flex items-center gap-2">
+                          <span className="bg-rose-600 text-white text-[10px] font-black uppercase px-2 py-0.5 rounded shadow-xs">
+                            🔥 OFERTA
+                          </span>
+                          <span className="line-through text-zinc-400 font-mono text-xs">
+                            ${editingProduct.price.toLocaleString("es-AR")}
+                          </span>
+                          <span className="font-extrabold text-rose-600 font-mono text-sm">
+                            ${Number(editingProduct.promoPrice).toLocaleString("es-AR")}
+                          </span>
+                        </div>
+                        <span className="text-[10px] font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200">
+                          -{Math.round(((editingProduct.price - Number(editingProduct.promoPrice)) / editingProduct.price) * 100)}%
+                        </span>
+                      </div>
+                    )}
+                    <p className="text-[10px] text-zinc-500 font-medium leading-relaxed">
+                      En la tienda web el precio viejo aparecerá <strong>tachado</strong> y se destacará el nuevo precio con el cartel de <strong>OFERTA</strong>.
+                    </p>
+                  </div>
+                )}
               </div>
 
               {/* Image Upload / URL */}
