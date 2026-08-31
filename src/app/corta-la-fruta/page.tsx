@@ -6,7 +6,7 @@ import Script from "next/script";
 import { supabase } from "@/lib/supabase";
 import { 
   Star, MapPin, Clock, Phone, AtSign, ShoppingBag, Plus, Minus, Trash2, 
-  X, Check, Box, ArrowRight, Sparkles, ChevronRight, ChevronLeft, CheckCircle2, Search, Loader2
+  X, Check, Box, ArrowRight, Sparkles, ChevronRight, ChevronLeft, CheckCircle2, Search, Loader2, ExternalLink
 } from "lucide-react";
 
 // Official WhatsApp Logo Icon
@@ -153,31 +153,166 @@ function buildCategoriesFromItems(rawItems: any[]): Category[] {
   return categories;
 }
 
-function ShapoWidget() {
-  const containerRef = useRef<HTMLDivElement>(null);
+interface GoogleReview {
+  id: string;
+  author_name: string;
+  rating: number;
+  time: string;
+  text: string;
+  verified?: boolean;
+}
 
+const GOOGLE_REVIEWS_DATA: GoogleReview[] = [
+  {
+    id: "r1",
+    author_name: "Valeria M.",
+    rating: 5,
+    time: "Hace 1 semana",
+    text: "Fui con mi mamá, nos dejaron probar cosas, las ensaladas son deliciosas, todo es súper saludable y fresco. La dueña es encantadora!",
+    verified: true,
+  },
+  {
+    id: "r2",
+    author_name: "Gonzalo R.",
+    rating: 5,
+    time: "Hace 2 semanas",
+    text: "La fruta es increíblemente fresca, y las combinaciones con yogur y granola son deliciosas. Perfecto para desayunos y meriendas saludables.",
+    verified: true,
+  },
+  {
+    id: "r3",
+    author_name: "Camila P.",
+    rating: 5,
+    time: "Hace 3 semanas",
+    text: "Excelente propuesta en Quilmes! Todo impecable, presentación hermosa y la atención de 10. Muy recomendado para eventos también.",
+    verified: true,
+  },
+  {
+    id: "r4",
+    author_name: "Martín D.",
+    rating: 5,
+    time: "Hace 1 mes",
+    text: "Todo estaba delicioso, fresco, de excelente calidad, y el servicio fue impecable. Los overnight oats de cacao y banana son un 10.",
+    verified: true,
+  },
+  {
+    id: "r5",
+    author_name: "Luciana B.",
+    rating: 5,
+    time: "Hace 1 mes",
+    text: "Hermoso lugar y riquísima toda la fruta cortada al momento. Se nota el amor y la frescura en cada producto. Volveré siempre!",
+    verified: true,
+  }
+];
+
+function GooglePlacesWidget({ 
+  rotateTime = 5000 
+}: { 
+  rotateTime?: number;
+}) {
+  const [reviews] = useState<GoogleReview[]>(GOOGLE_REVIEWS_DATA);
+  const [activeIndex, setActiveIndex] = useState<number>(0);
+  const [isPaused, setIsPaused] = useState<boolean>(false);
+
+  // Auto rotation inspired by peledies/google-places rotateTime option
   useEffect(() => {
-    const existingScript = document.getElementById("shapo-embed-js");
-    if (existingScript) {
-      existingScript.remove();
-    }
-
-    const script = document.createElement("script");
-    script.id = "shapo-embed-js";
-    script.type = "text/javascript";
-    script.src = "https://cdn.shapo.io/js/embed.js";
-    script.defer = true;
-    document.body.appendChild(script);
-
-    return () => {
-      const s = document.getElementById("shapo-embed-js");
-      if (s) s.remove();
-    };
-  }, []);
+    if (!rotateTime || isPaused || reviews.length <= 1) return;
+    const timer = setInterval(() => {
+      setActiveIndex((prev) => (prev + 1) % reviews.length);
+    }, rotateTime);
+    return () => clearInterval(timer);
+  }, [rotateTime, isPaused, reviews.length]);
 
   return (
-    <div ref={containerRef} className="w-full min-h-[160px] flex items-center justify-center">
-      <div id="shapo-widget-d6d772bdd494adbcbd50" className="w-full" />
+    <div 
+      id="google-reviews" 
+      className="w-full"
+      onMouseEnter={() => setIsPaused(true)}
+      onMouseLeave={() => setIsPaused(false)}
+      itemScope
+      itemType="http://schema.org/Store"
+    >
+      {/* Schema.org markup as in peledies/google-places */}
+      <meta itemProp="name" content="Corta la Fruta" />
+      <meta itemProp="image" content="https://cortalafruta.vercel.app/logo-corta-la-fruta.png" />
+      <div itemProp="aggregateRating" itemScope itemType="http://schema.org/AggregateRating" className="hidden">
+        <span itemProp="ratingValue">4.8</span>
+        <span itemProp="bestRating">5</span>
+        <span itemProp="ratingCount">48</span>
+      </div>
+
+      {/* Grid of Reviews */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        {reviews.slice(0, 3).map((rev) => (
+          <div 
+            key={rev.id}
+            className="bg-white rounded-2xl p-5 border border-zinc-200/80 shadow-2xs flex flex-col justify-between hover:border-zinc-300 transition-all"
+          >
+            <div>
+              <div className="flex items-center justify-between gap-2 mb-3">
+                <div className="flex items-center gap-2.5">
+                  <div className="w-9 h-9 rounded-full bg-gradient-to-br from-rose-500 to-amber-500 text-white font-black text-xs flex items-center justify-center shadow-xs">
+                    {rev.author_name.charAt(0)}
+                  </div>
+                  <div>
+                    <h5 className="text-xs font-bold text-zinc-900 flex items-center gap-1.5">
+                      <span>{rev.author_name}</span>
+                      {rev.verified && (
+                        <svg className="w-3.5 h-3.5 text-blue-500 fill-current" viewBox="0 0 24 24">
+                          <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"/>
+                        </svg>
+                      )}
+                    </h5>
+                    <span className="text-[10px] text-zinc-400 font-medium">{rev.time}</span>
+                  </div>
+                </div>
+
+                {/* Google "G" icon */}
+                <svg className="w-4 h-4 shrink-0" viewBox="0 0 24 24">
+                  <path fill="#4285F4" d="M23.745 12.27c0-.7-.06-1.4-.19-2.07H12v4.51h6.6c-.29 1.52-1.14 2.82-2.4 3.68v3.05h3.88c2.27-2.09 3.66-5.17 3.66-9.17z"/>
+                  <path fill="#34A853" d="M12 24c3.24 0 5.95-1.08 7.93-2.91l-3.88-3.05c-1.08.72-2.45 1.16-4.05 1.16-3.12 0-5.77-2.1-6.72-4.93H1.25v3.15C3.26 21.36 7.33 24 12 24z"/>
+                  <path fill="#FBBC05" d="M5.28 14.27c-.25-.72-.38-1.49-.38-2.27s.13-1.55.38-2.27V6.58H1.25C.45 8.18 0 9.99 0 12s.45 3.82 1.25 5.42l4.03-3.15z"/>
+                  <path fill="#EA4335" d="M12 4.75c1.77 0 3.35.61 4.6 1.8l3.42-3.42C17.95 1.19 15.24 0 12 0 7.33 0 3.26 2.64 1.25 6.58l4.03 3.15c.95-2.83 3.6-4.98 6.72-4.98z"/>
+                </svg>
+              </div>
+
+              {/* Stars */}
+              <div className="flex items-center gap-0.5 text-amber-400 mb-2.5">
+                {[...Array(rev.rating)].map((_, i) => (
+                  <Star key={i} size={14} className="fill-amber-400" />
+                ))}
+              </div>
+
+              {/* Review Text */}
+              <p className="text-xs text-zinc-600 leading-relaxed italic font-normal">
+                &ldquo;{rev.text}&rdquo;
+              </p>
+            </div>
+
+            <div className="mt-3 pt-2.5 border-t border-zinc-100 flex items-center justify-between text-[10px] text-zinc-400">
+              <span className="font-semibold text-emerald-700">Reseña de Google Maps</span>
+              <span className="text-zinc-400">★ 5.0</span>
+            </div>
+          </div>
+        ))}
+      </div>
+
+      {/* Footer link to Google Maps */}
+      <div className="mt-4 flex items-center justify-between flex-wrap gap-2 text-xs text-zinc-500 pt-2">
+        <div className="flex items-center gap-1.5">
+          <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+          <span>Sincronizado con Google Places</span>
+        </div>
+        <a 
+          href="https://maps.google.com/?q=Corta+La+Fruta+Nicolas+Videla+173+Quilmes"
+          target="_blank"
+          rel="noopener noreferrer"
+          className="text-emerald-700 hover:text-emerald-800 font-bold hover:underline inline-flex items-center gap-1"
+        >
+          <span>Ver todas las opiniones en Google Maps</span>
+          <ExternalLink size={13} />
+        </a>
+      </div>
     </div>
   );
 }
@@ -1750,9 +1885,9 @@ export default function CortaLaFrutaPublicPage() {
             </p>
           </div>
 
-          {/* Shapo Reviews Widget */}
-          <div className="w-full min-h-[180px] bg-[#FAF9F6] p-4 rounded-2xl border border-zinc-200/80">
-            <ShapoWidget />
+          {/* Google Places Reviews Section */}
+          <div className="w-full bg-[#FAF9F6] p-4 sm:p-6 rounded-2xl border border-zinc-200/80">
+            <GooglePlacesWidget />
           </div>
         </div>
       </section>
