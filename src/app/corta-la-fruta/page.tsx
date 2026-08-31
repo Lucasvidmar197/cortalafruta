@@ -153,62 +153,33 @@ function buildCategoriesFromItems(rawItems: any[]): Category[] {
   return categories;
 }
 
-const REVIEWS = [
-  {
-    id: 1,
-    author: "Cliente en Google",
-    text: "La fruta es increíblemente fresca, y las combinaciones con yogur y granola son deliciosas. Perfecto para eventos y cumpleaños infantiles.",
-    rating: 5
-  },
-  {
-    id: 2,
-    author: "Cliente en Google",
-    text: "Todo estaba delicioso, fresco, de excelente calidad, y el servicio fue excelente.",
-    rating: 5
-  },
-  {
-    id: 3,
-    author: "Cliente en Google",
-    text: "Fui con mi mamá, nos dejaron probar cosas, las ensaladas son deliciosas, todo es saludable, la dueña es encantadora.",
-    rating: 5
-  }
-];
-
-function TrustIndexWidget() {
+function ShapoWidget() {
   const containerRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    if (containerRef.current) {
-      containerRef.current.innerHTML = "";
-      const script = document.createElement("script");
-      script.src = "https://cdn.trustindex.io/loader.js?ffdf0397927a921fe646033d753";
-      script.async = true;
-      script.defer = true;
-      containerRef.current.appendChild(script);
+    const existingScript = document.getElementById("shapo-embed-js");
+    if (existingScript) {
+      existingScript.remove();
     }
 
-    // Remove any duplicate TrustIndex elements appended directly to <body> outside main container
-    const cleanupInterval = setInterval(() => {
-      const bodyChildren = Array.from(document.body.children);
-      bodyChildren.forEach((child) => {
-        if (
-          child.tagName !== "MAIN" && 
-          child.tagName !== "NEXT-ROUTE-ANNOUNCER" &&
-          (
-            child.className?.toString().includes("ti-") || 
-            child.className?.toString().includes("trustindex") || 
-            child.querySelector?.("iframe[src*='trustindex']")
-          )
-        ) {
-          child.remove();
-        }
-      });
-    }, 400);
+    const script = document.createElement("script");
+    script.id = "shapo-embed-js";
+    script.type = "text/javascript";
+    script.src = "https://cdn.shapo.io/js/embed.js";
+    script.defer = true;
+    document.body.appendChild(script);
 
-    return () => clearInterval(cleanupInterval);
+    return () => {
+      const s = document.getElementById("shapo-embed-js");
+      if (s) s.remove();
+    };
   }, []);
 
-  return <div ref={containerRef} className="w-full min-h-[160px] flex items-center justify-center" />;
+  return (
+    <div ref={containerRef} className="w-full min-h-[160px] flex items-center justify-center">
+      <div id="shapo-widget-d6d772bdd494adbcbd50" className="w-full" />
+    </div>
+  );
 }
 
 export default function CortaLaFrutaPublicPage() {
@@ -1779,9 +1750,9 @@ export default function CortaLaFrutaPublicPage() {
             </p>
           </div>
 
-          {/* TrustIndex External Widget Only */}
+          {/* Shapo Reviews Widget */}
           <div className="w-full min-h-[180px] bg-[#FAF9F6] p-4 rounded-2xl border border-zinc-200/80">
-            <TrustIndexWidget />
+            <ShapoWidget />
           </div>
         </div>
       </section>
