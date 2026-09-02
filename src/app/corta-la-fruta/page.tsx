@@ -6,7 +6,7 @@ import Script from "next/script";
 import { supabase } from "@/lib/supabase";
 import { 
   Star, MapPin, Clock, Phone, AtSign, ShoppingBag, Plus, Minus, Trash2, 
-  X, Check, Box, ArrowRight, Sparkles, ChevronRight, ChevronLeft, CheckCircle2, Search, Loader2, ExternalLink
+  X, Check, Box, ArrowRight, Sparkles, ChevronRight, ChevronLeft, CheckCircle2, Search, Loader2, ExternalLink, Package
 } from "lucide-react";
 
 // Official WhatsApp Logo Icon
@@ -536,7 +536,6 @@ export default function CortaLaFrutaPublicPage() {
   const [categories, setCategories] = useState<Category[]>([]);
   const [isLoadingMenu, setIsLoadingMenu] = useState<boolean>(true);
   const [activeCategory, setActiveCategory] = useState<string>("all");
-  const [searchQuery, setSearchQuery] = useState<string>("");
   const [currentPage, setCurrentPage] = useState<number>(1);
   const [active3DModal, setActive3DModal] = useState<Product | null>(null);
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
@@ -680,25 +679,14 @@ export default function CortaLaFrutaPublicPage() {
     }
   };
 
-  // Reset page when category or search query changes
+  // Reset page when category changes
   useEffect(() => {
     setCurrentPage(1);
-  }, [activeCategory, searchQuery]);
+  }, [activeCategory]);
 
-  // Filter Categories & Items based on activeCategory AND searchQuery
+  // Filter Categories based on activeCategory
   const filteredCategories = categories
-    .filter(cat => activeCategory === "all" || cat.id === activeCategory)
-    .map(category => {
-      if (!searchQuery.trim()) return category;
-      const query = searchQuery.toLowerCase();
-      const matchingItems = category.items.filter(item => 
-        item.name.toLowerCase().includes(query) ||
-        item.description.toLowerCase().includes(query) ||
-        (item.badge && item.badge.toLowerCase().includes(query))
-      );
-      return { ...category, items: matchingItems };
-    })
-    .filter(category => category.items.length > 0);
+    .filter(cat => activeCategory === "all" || cat.id === activeCategory);
 
   // Flattened products for "Todos los productos" pagination (4 cols x 2 rows = 8 items per page)
   const ITEMS_PER_PAGE = 8;
@@ -916,97 +904,72 @@ export default function CortaLaFrutaPublicPage() {
       {/* HERO PROMOTIONAL BANNER CAROUSEL */}
       <HeroPromoBannerCarousel />
 
-      {/* STICKY SEARCH & CATEGORY FILTER BAR */}
-      <nav className="sticky top-16 sm:top-20 z-30 bg-white/95 backdrop-blur-md border-b border-zinc-200/80 py-2.5 sm:py-3.5 px-3 sm:px-6 shadow-2xs space-y-2 sm:space-y-3">
-        <div className="max-w-6xl mx-auto flex flex-col md:flex-row items-center justify-between gap-3">
+      {/* STICKY CATEGORY FILTER BAR */}
+      <nav className="sticky top-16 sm:top-20 z-30 bg-white/95 backdrop-blur-md border-b border-zinc-200/80 py-2 sm:py-3 px-3 sm:px-6 shadow-2xs">
+        <div className="max-w-6xl mx-auto flex items-center gap-1.5 sm:gap-2">
           
-          {/* Live Search Input Bar */}
-          <div className="relative w-full md:w-80 shrink-0">
-            <Search size={17} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-zinc-400" />
-            <input 
-              type="text" 
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder="Buscar fruta, ensalada, ingrediente..."
-              className="w-full bg-zinc-100/80 focus:bg-white border border-zinc-200 focus:border-emerald-600 focus:ring-1 focus:ring-emerald-600 text-xs rounded-xl pl-9 pr-8 py-2.5 outline-none transition-all font-medium text-zinc-900 placeholder:text-zinc-400"
-            />
-            {searchQuery && (
-              <button 
-                onClick={() => setSearchQuery("")}
-                className="absolute right-3 top-1/2 -translate-y-1/2 text-zinc-400 hover:text-zinc-700 p-0.5"
-              >
-                <X size={14} />
-              </button>
-            )}
-          </div>
+          {/* PC Left Scroll Arrow Button */}
+          <button
+            onClick={() => scrollCategoryNav("left")}
+            className="hidden md:flex p-2 rounded-xl border border-zinc-200 bg-white hover:bg-zinc-100 text-zinc-700 transition-colors shrink-0 shadow-2xs"
+            title="Desplazar a la izquierda"
+          >
+            <ChevronLeft size={16} />
+          </button>
 
-          {/* Category Filter Pills (Scrollable & Dragable on PC & Mobile) */}
-          <div className="w-full max-w-full md:flex-1 min-w-0 flex items-center gap-1.5 sm:gap-2">
-            
-            {/* PC Left Scroll Arrow Button */}
+          {/* Scrollable Container with PC Mouse Drag */}
+          <div 
+            ref={categoryNavRef}
+            onMouseDown={handleCategoryMouseDown}
+            onMouseLeave={handleCategoryMouseLeaveOrUp}
+            onMouseUp={handleCategoryMouseLeaveOrUp}
+            onMouseMove={handleCategoryMouseMove}
+            className={`w-full min-w-0 flex items-center gap-1.5 sm:gap-2 overflow-x-auto no-scrollbar py-1 scroll-smooth touch-pan-x cursor-grab ${
+              isMouseDown ? "cursor-grabbing select-none" : ""
+            }`}
+          >
             <button
-              onClick={() => scrollCategoryNav("left")}
-              className="hidden md:flex p-2 rounded-xl border border-zinc-200 bg-white hover:bg-zinc-100 text-zinc-700 transition-colors shrink-0 shadow-2xs"
-              title="Desplazar a la izquierda"
-            >
-              <ChevronLeft size={16} />
-            </button>
-
-            {/* Scrollable Container with PC Mouse Drag */}
-            <div 
-              ref={categoryNavRef}
-              onMouseDown={handleCategoryMouseDown}
-              onMouseLeave={handleCategoryMouseLeaveOrUp}
-              onMouseUp={handleCategoryMouseLeaveOrUp}
-              onMouseMove={handleCategoryMouseMove}
-              className={`w-full min-w-0 flex items-center gap-1.5 sm:gap-2 overflow-x-auto no-scrollbar py-1 scroll-smooth touch-pan-x cursor-grab ${
-                isMouseDown ? "cursor-grabbing select-none" : ""
+              onClick={() => setActiveCategory("all")}
+              className={`shrink-0 px-3 sm:px-3.5 py-1.5 sm:py-2 rounded-xl text-xs font-bold whitespace-nowrap transition-all ${
+                activeCategory === "all"
+                  ? "bg-zinc-900 text-white shadow-xs"
+                  : "bg-zinc-100 text-zinc-600 hover:bg-zinc-200/70"
               }`}
             >
+              Todos los productos
+            </button>
+            {categories.map((cat) => (
               <button
-                onClick={() => setActiveCategory("all")}
-                className={`shrink-0 px-3 sm:px-3.5 py-1.5 sm:py-2 rounded-xl text-xs font-bold whitespace-nowrap transition-all ${
-                  activeCategory === "all"
-                    ? "bg-zinc-900 text-white shadow-xs"
+                key={cat.id}
+                onClick={() => setActiveCategory(cat.id)}
+                className={`shrink-0 px-3 sm:px-3.5 py-1.5 sm:py-2 rounded-xl text-xs font-bold whitespace-nowrap transition-all flex items-center gap-1.5 ${
+                  activeCategory === cat.id
+                    ? cat.theme === "strawberry" 
+                      ? "bg-rose-500 text-white shadow-xs" 
+                      : cat.theme === "kiwi" 
+                      ? "bg-emerald-600 text-white shadow-xs" 
+                      : "bg-amber-500 text-white shadow-xs"
                     : "bg-zinc-100 text-zinc-600 hover:bg-zinc-200/70"
                 }`}
               >
-                Todos los productos
+                <span>{cat.name}</span>
+                <span className={`text-[10px] px-1.5 py-0.2 rounded-full ${
+                  activeCategory === cat.id ? "bg-white/20 text-white" : "bg-zinc-200 text-zinc-600"
+                }`}>
+                  {cat.items.length}
+                </span>
               </button>
-              {categories.map((cat) => (
-                <button
-                  key={cat.id}
-                  onClick={() => setActiveCategory(cat.id)}
-                  className={`shrink-0 px-3 sm:px-3.5 py-1.5 sm:py-2 rounded-xl text-xs font-bold whitespace-nowrap transition-all flex items-center gap-1.5 ${
-                    activeCategory === cat.id
-                      ? cat.theme === "strawberry" 
-                        ? "bg-rose-500 text-white shadow-xs" 
-                        : cat.theme === "kiwi" 
-                        ? "bg-emerald-600 text-white shadow-xs" 
-                        : "bg-amber-500 text-white shadow-xs"
-                      : "bg-zinc-100 text-zinc-600 hover:bg-zinc-200/70"
-                  }`}
-                >
-                  <span>{cat.name}</span>
-                  <span className={`text-[10px] px-1.5 py-0.2 rounded-full ${
-                    activeCategory === cat.id ? "bg-white/20 text-white" : "bg-zinc-200 text-zinc-600"
-                  }`}>
-                    {cat.items.length}
-                  </span>
-                </button>
-              ))}
-            </div>
-
-            {/* PC Right Scroll Arrow Button */}
-            <button
-              onClick={() => scrollCategoryNav("right")}
-              className="hidden md:flex p-2 rounded-xl border border-zinc-200 bg-white hover:bg-zinc-100 text-zinc-700 transition-colors shrink-0 shadow-2xs"
-              title="Desplazar a la derecha"
-            >
-              <ChevronRight size={16} />
-            </button>
-
+            ))}
           </div>
+
+          {/* PC Right Scroll Arrow Button */}
+          <button
+            onClick={() => scrollCategoryNav("right")}
+            className="hidden md:flex p-2 rounded-xl border border-zinc-200 bg-white hover:bg-zinc-100 text-zinc-700 transition-colors shrink-0 shadow-2xs"
+            title="Desplazar a la derecha"
+          >
+            <ChevronRight size={16} />
+          </button>
 
         </div>
       </nav>
@@ -1025,21 +988,18 @@ export default function CortaLaFrutaPublicPage() {
           </div>
         ) : filteredCategories.length === 0 ? (
           <div className="text-center py-16 bg-white rounded-2xl border border-zinc-200 p-8 space-y-3">
-            <Search size={40} className="mx-auto text-zinc-300 stroke-1" />
+            <Package size={40} className="mx-auto text-zinc-300 stroke-1" />
             <h4 className="font-bold text-base text-zinc-800">
-              No encontramos resultados para "{searchQuery}"
+              No hay productos disponibles en esta categoría
             </h4>
             <p className="text-xs text-zinc-500 max-w-sm mx-auto">
-              Probá buscando con otro nombre de fruta, ingrediente o seleccioná "Todos los productos".
+              Seleccioná "Todos los productos" para ver todo nuestro catálogo fresco.
             </p>
             <button
-              onClick={() => {
-                setSearchQuery("");
-                setActiveCategory("all");
-              }}
+              onClick={() => setActiveCategory("all")}
               className="mt-2 text-xs font-bold text-rose-600 bg-rose-50 border border-rose-200 px-4 py-2 rounded-xl hover:bg-rose-100 transition-colors inline-block"
             >
-              Limpiar Búsqueda
+              Ver todos los productos
             </button>
           </div>
         ) : activeCategory === "all" ? (
