@@ -25,6 +25,82 @@ interface MenuItem {
   created_at?: string;
 }
 
+export interface CupIngredient {
+  id: string;
+  name: string;
+  available: boolean;
+  emoji?: string;
+  description?: string;
+}
+
+export interface CupSizeOption {
+  id: string;
+  name: string;
+  icon: string;
+  fruitsOnlyPrice: number;
+  fullComboPrice: number;
+  imageUrl?: string;
+}
+
+export interface CupBuilderConfig {
+  enabled: boolean;
+  name: string;
+  description: string;
+  sizes: CupSizeOption[];
+  fruits: CupIngredient[];
+  bases: CupIngredient[];
+  toppings: CupIngredient[];
+}
+
+export const DEFAULT_CUP_BUILDER_CONFIG: CupBuilderConfig = {
+  enabled: true,
+  name: "Armá tu Vaso",
+  description: "Elegí el tamaño de tu vaso, frutas, yogur o crema y toppings capa por capa.",
+  sizes: [
+    {
+      id: "vaso-mediano",
+      name: "Vaso Mediano",
+      icon: "🥤",
+      fruitsOnlyPrice: 7500,
+      fullComboPrice: 9500,
+      imageUrl: "https://i.postimg.cc/Gm8bBX5t/image-removebg-preview.png",
+    },
+    {
+      id: "vaso-grande",
+      name: "Vaso Grande",
+      icon: "🥤",
+      fruitsOnlyPrice: 8500,
+      fullComboPrice: 10500,
+      imageUrl: "https://i.postimg.cc/Gm8bBX5t/image-removebg-preview.png",
+    },
+  ],
+  fruits: [
+    { id: "f1", name: "Mango Maracuyá", available: true, emoji: "🥭" },
+    { id: "f2", name: "Pera", available: true, emoji: "🍐" },
+    { id: "f3", name: "Frutilla", available: true, emoji: "🍓" },
+    { id: "f4", name: "Manzana", available: true, emoji: "🍎" },
+    { id: "f5", name: "Mandarina", available: true, emoji: "🍊" },
+    { id: "f6", name: "Kiwi", available: true, emoji: "🥝" },
+    { id: "f7", name: "Banana", available: true, emoji: "🍌" },
+    { id: "f8", name: "Melón Brasil Dulce", available: true, emoji: "🍈" },
+    { id: "f9", name: "Pomelo", available: true, emoji: "🍊" },
+    { id: "f10", name: "Membrillo en Almíbar", available: true, emoji: "🍯" }
+  ],
+  bases: [
+    { id: "b1", name: "Yogurt Griego con Chía", available: true, description: "Con semillas de chía hidratadas", emoji: "🥣" },
+    { id: "b2", name: "Yogurt Griego", available: true, description: "Cremoso y natural", emoji: "🥣" },
+    { id: "b3", name: "Yogurt con Stevia", available: true, description: "Sin azúcar agregada", emoji: "🥛" }
+  ],
+  toppings: [
+    { id: "t1", name: "Cáscara de Naranja", available: true, emoji: "🍊" },
+    { id: "t2", name: "Salsa de Frutilla", available: true, emoji: "🍓" },
+    { id: "t3", name: "Salsa de Kiwi", available: true, emoji: "🥝" },
+    { id: "t4", name: "Salsa de Uva", available: true, emoji: "🍇" },
+    { id: "t5", name: "Salsa de Piña", available: true, emoji: "🍍" },
+    { id: "t6", name: "Salsa de Arándanos", available: true, emoji: "🫐" }
+  ]
+};
+
 const DEFAULT_CATEGORIES = [
   "Vasos de Fruta Cortada",
   "Ensaladas de Frutas",
@@ -94,6 +170,22 @@ export default function CortaLaFrutaAdminPage() {
   const [isLoadingMenu, setIsLoadingMenu] = useState<boolean>(false);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
 
+  // Tab state: 'menu' (standard catalog) or 'cup-builder' (Armá tu Vaso config)
+  const [activeAdminTab, setActiveAdminTab] = useState<"menu" | "cup-builder">("menu");
+
+  // Cup Builder configuration state
+  const [cupConfig, setCupConfig] = useState<CupBuilderConfig>(DEFAULT_CUP_BUILDER_CONFIG);
+  const [isSavingCupConfig, setIsSavingCupConfig] = useState(false);
+
+  // Quick addition inputs for Cup Builder
+  const [newFruitName, setNewFruitName] = useState("");
+  const [newFruitEmoji, setNewFruitEmoji] = useState("🍓");
+  const [newBaseName, setNewBaseName] = useState("");
+  const [newBaseDesc, setNewBaseDesc] = useState("");
+  const [newBaseEmoji, setNewBaseEmoji] = useState("🥣");
+  const [newToppingName, setNewToppingName] = useState("");
+  const [newToppingEmoji, setNewToppingEmoji] = useState("🍯");
+
   // Category editing state
   const [editingCategoryOldName, setEditingCategoryOldName] = useState<string | null>(null);
   const [editingCategoryNewName, setEditingCategoryNewName] = useState<string>("");
@@ -150,7 +242,7 @@ export default function CortaLaFrutaAdminPage() {
     };
   }, []);
 
-  // 2. Fetch menu items from Supabase when authenticated
+  // 2. Fetch menu items and Cup Builder config from Supabase when authenticated
   const fetchMenuData = async () => {
     setIsLoadingMenu(true);
     try {
@@ -162,7 +254,24 @@ export default function CortaLaFrutaAdminPage() {
       if (error) throw error;
 
       if (data) {
-        const mappedItems: MenuItem[] = data.map((item: any) => ({
+        // Find cup builder config
+        const configRow = data.find((i: any) => i.id === "cup-builder-config" || i.category === "Armá tu Vaso");
+        if (configRow && configRow.description) {
+          try {
+            const parsed = JSON.parse(configRow.description);
+            setCupConfig({
+              ...DEFAULT_CUP_BUILDER_CONFIG,
+              ...parsed,
+              sizes: parsed.sizes || DEFAULT_CUP_BUILDER_CONFIG.sizes,
+            });
+          } catch (e) {
+            console.error("Error parsing cup builder config:", e);
+          }
+        }
+
+        // Regular menu products (filter out cup builder config from catalog list)
+        const regularProducts = data.filter((i: any) => i.id !== "cup-builder-config");
+        const mappedItems: MenuItem[] = regularProducts.map((item: any) => ({
           ...item,
           glburl: item.glburl || null,
           image_urls: item.image_urls || [],
@@ -171,7 +280,7 @@ export default function CortaLaFrutaAdminPage() {
 
         // Compute unique categories combining defaults and database items
         const itemCategories = Array.from(new Set(mappedItems.map(i => i.category).filter(Boolean)));
-        const combined = Array.from(new Set([...DEFAULT_CATEGORIES, ...itemCategories]));
+        const combined = Array.from(new Set([...DEFAULT_CATEGORIES, ...itemCategories])).filter(c => c !== "Armá tu Vaso");
         setCategoriesList(combined);
       }
     } catch (err: any) {
@@ -179,6 +288,106 @@ export default function CortaLaFrutaAdminPage() {
       showToast("Error al conectar con Supabase: " + (err.message || "revisá la conexión"));
     } finally {
       setIsLoadingMenu(false);
+    }
+  };
+
+  // Cup Builder Handlers
+  const handleToggleIngredient = (type: "fruits" | "bases" | "toppings", id: string) => {
+    setCupConfig((prev) => ({
+      ...prev,
+      [type]: prev[type].map((item) =>
+        item.id === id ? { ...item, available: !item.available } : item
+      ),
+    }));
+  };
+
+  const handleDeleteIngredient = (type: "fruits" | "bases" | "toppings", id: string) => {
+    setCupConfig((prev) => ({
+      ...prev,
+      [type]: prev[type].filter((item) => item.id !== id),
+    }));
+  };
+
+  const handleAddFruit = () => {
+    if (!newFruitName.trim()) return;
+    const newId = "f-" + Date.now();
+    setCupConfig((prev) => ({
+      ...prev,
+      fruits: [
+        ...prev.fruits,
+        {
+          id: newId,
+          name: newFruitName.trim(),
+          emoji: newFruitEmoji.trim() || "🍓",
+          available: true,
+        },
+      ],
+    }));
+    setNewFruitName("");
+    showToast(`¡Fruta "${newFruitName.trim()}" agregada! Recordá guardar.`);
+  };
+
+  const handleAddBase = () => {
+    if (!newBaseName.trim()) return;
+    const newId = "b-" + Date.now();
+    setCupConfig((prev) => ({
+      ...prev,
+      bases: [
+        ...prev.bases,
+        {
+          id: newId,
+          name: newBaseName.trim(),
+          description: newBaseDesc.trim() || undefined,
+          emoji: newBaseEmoji.trim() || "🥣",
+          available: true,
+        },
+      ],
+    }));
+    setNewBaseName("");
+    setNewBaseDesc("");
+    showToast(`¡Opción "${newBaseName.trim()}" agregada! Recordá guardar.`);
+  };
+
+  const handleAddTopping = () => {
+    if (!newToppingName.trim()) return;
+    const newId = "t-" + Date.now();
+    setCupConfig((prev) => ({
+      ...prev,
+      toppings: [
+        ...prev.toppings,
+        {
+          id: newId,
+          name: newToppingName.trim(),
+          emoji: newToppingEmoji.trim() || "🍯",
+          available: true,
+        },
+      ],
+    }));
+    setNewToppingName("");
+    showToast(`¡Topping "${newToppingName.trim()}" agregado! Recordá guardar.`);
+  };
+
+  const handleSaveCupConfig = async () => {
+    setIsSavingCupConfig(true);
+    try {
+      const payload = {
+        id: "cup-builder-config",
+        name: cupConfig.name || "Armá tu Combo Favorito",
+        description: JSON.stringify(cupConfig),
+        price: cupConfig.sizes?.[0]?.fruitsOnlyPrice || 7500,
+        category: "Armá tu Vaso",
+        image_urls: ["https://i.postimg.cc/Gm8bBX5t/image-removebg-preview.png"]
+      };
+
+      const { error } = await supabase.from("menu_items").upsert(payload);
+      if (error) throw error;
+
+      showToast("✨ ¡Configuración y precios guardados con éxito!");
+    } catch (err: any) {
+      console.error("Error al guardar configurador:", err);
+      showToast("Error al guardar: " + (err.message || "revisá la conexión"));
+    } finally {
+      setIsSavingCupConfig(false);
     }
   };
 
@@ -694,42 +903,532 @@ export default function CortaLaFrutaAdminPage() {
           </div>
         </div>
 
-        {/* Modal: Crear Nueva Categoría */}
-        {isAddingCategory && (
-          <div className="mb-6 bg-white p-5 rounded-2xl border border-emerald-300 shadow-md animate-in fade-in slide-in-from-top-2 duration-200">
-            <h4 className="font-extrabold text-sm text-zinc-900 mb-2 flex items-center gap-2">
-              <Plus size={16} className="text-emerald-700" />
-              <span>Agregar Nueva Categoría al Menú</span>
-            </h4>
-            <div className="flex flex-col sm:flex-row items-center gap-2">
-              <input 
-                type="text" 
-                value={newCategoryName}
-                onChange={(e) => setNewCategoryName(e.target.value)}
-                placeholder="Nombre de la nueva categoría (ej: Smoothies & Jugos Naturales)"
-                className="w-full sm:flex-1 border border-zinc-300 focus:border-emerald-600 rounded-xl px-3.5 py-2 text-xs outline-none font-medium"
-                autoFocus
-              />
-              <div className="flex items-center gap-2 w-full sm:w-auto">
-                <button
-                  onClick={handleCreateCategory}
-                  className="flex-1 sm:flex-none bg-emerald-700 hover:bg-emerald-800 text-white text-xs font-bold px-4 py-2 rounded-xl transition-colors"
-                >
-                  Guardar Categoría
-                </button>
-                <button
-                  onClick={() => setIsAddingCategory(false)}
-                  className="flex-1 sm:flex-none bg-zinc-100 hover:bg-zinc-200 text-zinc-600 text-xs font-bold px-4 py-2 rounded-xl transition-colors"
-                >
-                  Cancelar
-                </button>
+        {/* Admin Navigation Tabs */}
+        <div className="flex items-center gap-2 mb-8 bg-zinc-200/60 p-1.5 rounded-2xl w-fit">
+          <button
+            onClick={() => setActiveAdminTab("menu")}
+            className={`px-4 py-2.5 rounded-xl text-xs font-bold transition-all flex items-center gap-2 ${
+              activeAdminTab === "menu"
+                ? "bg-white text-zinc-900 shadow-xs"
+                : "text-zinc-600 hover:text-zinc-900 hover:bg-white/50"
+            }`}
+          >
+            <Package size={16} />
+            <span>Catálogo Tradicional ({items.length})</span>
+          </button>
+
+          <button
+            onClick={() => setActiveAdminTab("cup-builder")}
+            className={`px-4 py-2.5 rounded-xl text-xs font-bold transition-all flex items-center gap-2 ${
+              activeAdminTab === "cup-builder"
+                ? "bg-rose-500 text-white shadow-xs"
+                : "text-zinc-600 hover:text-zinc-900 hover:bg-white/50"
+            }`}
+          >
+            <Sparkles size={16} />
+            <span>🍓 Armá tu Vaso (PedidosYa)</span>
+            <span className={`text-[10px] font-mono px-2 py-0.5 rounded-full ${
+              activeAdminTab === "cup-builder" ? "bg-white/20 text-white" : "bg-rose-100 text-rose-700 font-bold"
+            }`}>
+              4 Pasos
+            </span>
+          </button>
+        </div>
+
+        {/* CUP BUILDER CONFIGURATION VIEW */}
+        {activeAdminTab === "cup-builder" ? (
+          <div className="space-y-8 animate-in fade-in duration-200">
+            
+            {/* General Cup Settings Card */}
+            <div className="bg-white rounded-3xl p-6 sm:p-8 border border-zinc-200 shadow-2xs space-y-6">
+              <div className="flex flex-wrap items-center justify-between gap-4 border-b border-zinc-100 pb-5">
+                <div className="flex items-center gap-3">
+                  <div className="w-12 h-12 rounded-2xl bg-rose-50 text-rose-600 flex items-center justify-center font-black text-xl shadow-xs">
+                    🍓
+                  </div>
+                  <div>
+                    <h3 className="text-base sm:text-lg font-black text-zinc-900 flex items-center gap-2">
+                      <span>Configuración de "Armá tu Vaso"</span>
+                      <span className="text-[10px] bg-emerald-100 text-emerald-800 font-bold px-2 py-0.5 rounded-full">
+                        Estilo PedidosYa
+                      </span>
+                    </h3>
+                    <p className="text-xs text-zinc-500">
+                      Personalizá las frutas, bases y toppings que tus clientes pueden elegir capa por capa.
+                    </p>
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-3">
+                  <button
+                    type="button"
+                    onClick={() => setCupConfig(prev => ({ ...prev, enabled: !prev.enabled }))}
+                    className={`px-3.5 py-2 rounded-xl text-xs font-bold transition-colors flex items-center gap-2 ${
+                      cupConfig.enabled 
+                        ? "bg-emerald-50 text-emerald-700 border border-emerald-200" 
+                        : "bg-zinc-100 text-zinc-500 border border-zinc-200"
+                    }`}
+                  >
+                    <span className={`w-2.5 h-2.5 rounded-full ${cupConfig.enabled ? "bg-emerald-500 animate-pulse" : "bg-zinc-400"}`} />
+                    <span>{cupConfig.enabled ? "Activo en la web" : "Desactivado en la web"}</span>
+                  </button>
+
+                  <button
+                    onClick={handleSaveCupConfig}
+                    disabled={isSavingCupConfig}
+                    className="bg-rose-500 hover:bg-rose-600 text-white text-xs font-extrabold px-5 py-2.5 rounded-xl transition-all shadow-xs flex items-center gap-2 active:scale-95 disabled:opacity-50"
+                  >
+                    {isSavingCupConfig ? (
+                      <Loader2 size={16} className="animate-spin" />
+                    ) : (
+                      <Save size={16} />
+                    )}
+                    <span>Guardar Cambios</span>
+                  </button>
+                </div>
+              </div>
+
+              {/* Name & Description Fields */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-[11px] font-bold text-zinc-700 mb-1 uppercase tracking-wider">
+                    Título del Sección
+                  </label>
+                  <input 
+                    type="text"
+                    value={cupConfig.name}
+                    onChange={(e) => setCupConfig(prev => ({ ...prev, name: e.target.value }))}
+                    className="w-full border border-zinc-300 focus:border-rose-500 rounded-xl px-3.5 py-2.5 text-xs font-bold outline-none"
+                    placeholder="Armá tu Combo Favorito"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-[11px] font-bold text-zinc-700 mb-1 uppercase tracking-wider">
+                    Descripción / Subtítulo
+                  </label>
+                  <input 
+                    type="text"
+                    value={cupConfig.description}
+                    onChange={(e) => setCupConfig(prev => ({ ...prev, description: e.target.value }))}
+                    className="w-full border border-zinc-300 focus:border-rose-500 rounded-xl px-3.5 py-2.5 text-xs outline-none"
+                    placeholder="Elegí tu tamaño, frutas, yogur o crema y toppings capa por capa."
+                  />
+                </div>
+              </div>
+
+              {/* Official 4 Sizes Pricing Grid */}
+              <div className="pt-2">
+                <label className="block text-[11px] font-extrabold text-zinc-900 mb-2 uppercase tracking-wider flex items-center gap-1.5">
+                  <span>💰 Precios por Tamaño y Formato (Cartel Oficial)</span>
+                </label>
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+                  {(cupConfig.sizes || DEFAULT_CUP_BUILDER_CONFIG.sizes).map((size, idx) => (
+                    <div key={size.id} className="bg-zinc-50 border border-zinc-200/80 rounded-2xl p-4 space-y-3">
+                      <div className="flex items-center gap-2">
+                        <span className="text-xl">{size.icon}</span>
+                        <span className="font-extrabold text-xs text-zinc-900">{size.name}</span>
+                      </div>
+
+                      <div>
+                        <label className="block text-[10px] font-bold text-zinc-500 mb-0.5">
+                          Solo Frutas ($)
+                        </label>
+                        <input 
+                          type="number"
+                          value={size.fruitsOnlyPrice || ""}
+                          onChange={(e) => {
+                            const val = Number(e.target.value);
+                            setCupConfig(prev => {
+                              const updated = [...(prev.sizes || DEFAULT_CUP_BUILDER_CONFIG.sizes)];
+                              updated[idx] = { ...updated[idx], fruitsOnlyPrice: val };
+                              return { ...prev, sizes: updated };
+                            });
+                          }}
+                          className="w-full border border-zinc-300 focus:border-rose-500 rounded-xl px-3 py-1.5 text-xs font-bold outline-none font-mono bg-white"
+                          placeholder="7500"
+                        />
+                      </div>
+
+                      <div>
+                        <label className="block text-[10px] font-bold text-rose-600 mb-0.5">
+                          Completo: Yogur + Toppings ($)
+                        </label>
+                        <input 
+                          type="number"
+                          value={size.fullComboPrice || ""}
+                          onChange={(e) => {
+                            const val = Number(e.target.value);
+                            setCupConfig(prev => {
+                              const updated = [...(prev.sizes || DEFAULT_CUP_BUILDER_CONFIG.sizes)];
+                              updated[idx] = { ...updated[idx], fullComboPrice: val };
+                              return { ...prev, sizes: updated };
+                            });
+                          }}
+                          className="w-full border border-zinc-300 focus:border-rose-500 rounded-xl px-3 py-1.5 text-xs font-bold outline-none font-mono bg-white text-rose-600"
+                          placeholder="9500"
+                        />
+                      </div>
+                    </div>
+                  ))}
+                </div>
               </div>
             </div>
-          </div>
-        )}
 
-        {/* Categories & Products List */}
-        <div className="space-y-8">
+            {/* STEP 1 & STEP 3: FRUITS MANAGEMENT */}
+            <div className="bg-white rounded-3xl p-6 sm:p-8 border border-zinc-200 shadow-2xs space-y-6">
+              <div className="flex flex-wrap items-center justify-between gap-3 border-b border-zinc-100 pb-4">
+                <div>
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs font-black bg-rose-100 text-rose-700 px-2.5 py-0.5 rounded-full">
+                      Paso 1 y Paso 3
+                    </span>
+                    <h4 className="text-sm sm:text-base font-black text-zinc-900">
+                      🍓 Frutas Disponibles (Base & Capa Superior)
+                    </h4>
+                  </div>
+                  <p className="text-xs text-zinc-500 mt-1">
+                    El cliente elegirá una fruta en el Paso 1 (base) y otra en el Paso 3. Si te quedás sin stock de alguna, desactivala acá con 1 clic.
+                  </p>
+                </div>
+                <span className="text-xs font-mono font-bold text-zinc-500 bg-zinc-100 px-3 py-1 rounded-xl">
+                  {cupConfig.fruits.filter(f => f.available).length} activas / {cupConfig.fruits.length} total
+                </span>
+              </div>
+
+              {/* Add New Fruit Input */}
+              <div className="flex flex-wrap items-center gap-2 bg-zinc-50 p-3.5 rounded-2xl border border-zinc-200/80">
+                <input 
+                  type="text"
+                  value={newFruitEmoji}
+                  onChange={(e) => setNewFruitEmoji(e.target.value)}
+                  className="w-12 text-center border border-zinc-300 rounded-xl py-2 text-sm bg-white focus:outline-none focus:border-rose-500"
+                  placeholder="🍓"
+                />
+                <input 
+                  type="text"
+                  value={newFruitName}
+                  onChange={(e) => setNewFruitName(e.target.value)}
+                  onKeyDown={(e) => { if (e.key === "Enter") handleAddFruit(); }}
+                  className="flex-1 min-w-[180px] border border-zinc-300 rounded-xl px-3 py-2 text-xs bg-white focus:outline-none focus:border-rose-500 font-medium"
+                  placeholder="Nombre de la nueva fruta (ej: Arándanos, Maracuyá, Frutillas)"
+                />
+                <button
+                  type="button"
+                  onClick={handleAddFruit}
+                  className="bg-rose-500 hover:bg-rose-600 text-white text-xs font-bold px-4 py-2 rounded-xl transition-colors flex items-center gap-1.5"
+                >
+                  <Plus size={14} />
+                  <span>Agregar Fruta</span>
+                </button>
+              </div>
+
+              {/* Fruits Badges Grid */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                {cupConfig.fruits.map((fruit) => (
+                  <div 
+                    key={fruit.id}
+                    className={`p-3.5 rounded-2xl border transition-all flex items-center justify-between gap-3 ${
+                      fruit.available 
+                        ? "bg-white border-zinc-200 hover:border-zinc-300 shadow-2xs" 
+                        : "bg-zinc-50 border-dashed border-zinc-300 opacity-60"
+                    }`}
+                  >
+                    <div className="flex items-center gap-2.5 min-w-0">
+                      <span className="text-xl shrink-0">{fruit.emoji || "🍓"}</span>
+                      <span className="text-xs font-bold text-zinc-900 truncate">{fruit.name}</span>
+                    </div>
+
+                    <div className="flex items-center gap-1.5 shrink-0">
+                      <button
+                        type="button"
+                        onClick={() => handleToggleIngredient("fruits", fruit.id)}
+                        className={`text-[10px] font-bold px-2.5 py-1 rounded-lg transition-colors ${
+                          fruit.available
+                            ? "bg-emerald-50 text-emerald-700 hover:bg-emerald-100"
+                            : "bg-zinc-200 text-zinc-600 hover:bg-zinc-300"
+                        }`}
+                        title={fruit.available ? "Disponible (clic para pausar)" : "Pausado (clic para activar)"}
+                      >
+                        {fruit.available ? "En Stock" : "Agotado"}
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => handleDeleteIngredient("fruits", fruit.id)}
+                        className="p-1.5 text-zinc-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-colors"
+                        title="Eliminar fruta"
+                      >
+                        <Trash2 size={13} />
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* STEP 2: YOGURT & CREAM BASES */}
+            <div className="bg-white rounded-3xl p-6 sm:p-8 border border-zinc-200 shadow-2xs space-y-6">
+              <div className="flex flex-wrap items-center justify-between gap-3 border-b border-zinc-100 pb-4">
+                <div>
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs font-black bg-blue-100 text-blue-700 px-2.5 py-0.5 rounded-full">
+                      Paso 2
+                    </span>
+                    <h4 className="text-sm sm:text-base font-black text-zinc-900">
+                      🥣 Yogures, Cremas & Chía (Capa Intermedia)
+                    </h4>
+                  </div>
+                  <p className="text-xs text-zinc-500 mt-1">
+                    El cliente elegirá 1 base cremosa. Podés agregar opciones veganas, sin azúcar o solo frutas.
+                  </p>
+                </div>
+                <span className="text-xs font-mono font-bold text-zinc-500 bg-zinc-100 px-3 py-1 rounded-xl">
+                  {cupConfig.bases.filter(b => b.available).length} activas / {cupConfig.bases.length} total
+                </span>
+              </div>
+
+              {/* Add New Base Input */}
+              <div className="flex flex-wrap items-center gap-2 bg-zinc-50 p-3.5 rounded-2xl border border-zinc-200/80">
+                <input 
+                  type="text"
+                  value={newBaseEmoji}
+                  onChange={(e) => setNewBaseEmoji(e.target.value)}
+                  className="w-12 text-center border border-zinc-300 rounded-xl py-2 text-sm bg-white focus:outline-none focus:border-blue-500"
+                  placeholder="🥣"
+                />
+                <input 
+                  type="text"
+                  value={newBaseName}
+                  onChange={(e) => setNewBaseName(e.target.value)}
+                  className="flex-1 min-w-[160px] border border-zinc-300 rounded-xl px-3 py-2 text-xs bg-white focus:outline-none focus:border-blue-500 font-medium"
+                  placeholder="Nombre de la base (ej: Yogur Griego Sin Azúcar)"
+                />
+                <input 
+                  type="text"
+                  value={newBaseDesc}
+                  onChange={(e) => setNewBaseDesc(e.target.value)}
+                  onKeyDown={(e) => { if (e.key === "Enter") handleAddBase(); }}
+                  className="flex-1 min-w-[160px] border border-zinc-300 rounded-xl px-3 py-2 text-xs bg-white focus:outline-none focus:border-blue-500"
+                  placeholder="Detalle opcional (ej: Cremoso y proteico)"
+                />
+                <button
+                  type="button"
+                  onClick={handleAddBase}
+                  className="bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold px-4 py-2 rounded-xl transition-colors flex items-center gap-1.5"
+                >
+                  <Plus size={14} />
+                  <span>Agregar Base</span>
+                </button>
+              </div>
+
+              {/* Bases Badges Grid */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                {cupConfig.bases.map((base) => (
+                  <div 
+                    key={base.id}
+                    className={`p-3.5 rounded-2xl border transition-all flex items-center justify-between gap-3 ${
+                      base.available 
+                        ? "bg-white border-zinc-200 hover:border-zinc-300 shadow-2xs" 
+                        : "bg-zinc-50 border-dashed border-zinc-300 opacity-60"
+                    }`}
+                  >
+                    <div className="min-w-0">
+                      <div className="flex items-center gap-2">
+                        <span className="text-xl shrink-0">{base.emoji || "🥣"}</span>
+                        <span className="text-xs font-bold text-zinc-900 truncate">{base.name}</span>
+                      </div>
+                      {base.description && (
+                        <p className="text-[10px] text-zinc-400 truncate mt-0.5 ml-7">{base.description}</p>
+                      )}
+                    </div>
+
+                    <div className="flex items-center gap-1.5 shrink-0">
+                      <button
+                        type="button"
+                        onClick={() => handleToggleIngredient("bases", base.id)}
+                        className={`text-[10px] font-bold px-2.5 py-1 rounded-lg transition-colors ${
+                          base.available
+                            ? "bg-emerald-50 text-emerald-700 hover:bg-emerald-100"
+                            : "bg-zinc-200 text-zinc-600 hover:bg-zinc-300"
+                        }`}
+                        title={base.available ? "Disponible" : "Pausado"}
+                      >
+                        {base.available ? "En Stock" : "Agotado"}
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => handleDeleteIngredient("bases", base.id)}
+                        className="p-1.5 text-zinc-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-colors"
+                        title="Eliminar base"
+                      >
+                        <Trash2 size={13} />
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* STEP 4: TOPPINGS & SAUCES */}
+            <div className="bg-white rounded-3xl p-6 sm:p-8 border border-zinc-200 shadow-2xs space-y-6">
+              <div className="flex flex-wrap items-center justify-between gap-3 border-b border-zinc-100 pb-4">
+                <div>
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs font-black bg-amber-100 text-amber-800 px-2.5 py-0.5 rounded-full">
+                      Paso 4
+                    </span>
+                    <h4 className="text-sm sm:text-base font-black text-zinc-900">
+                      🍯 Toppings & Salsas (Cierre del Vaso)
+                    </h4>
+                  </div>
+                  <p className="text-xs text-zinc-500 mt-1">
+                    El cliente podrá seleccionar sus toppings y salsas preferidos para coronar su vaso.
+                  </p>
+                </div>
+                <span className="text-xs font-mono font-bold text-zinc-500 bg-zinc-100 px-3 py-1 rounded-xl">
+                  {cupConfig.toppings.filter(t => t.available).length} activos / {cupConfig.toppings.length} total
+                </span>
+              </div>
+
+              {/* Add New Topping Input */}
+              <div className="flex flex-wrap items-center gap-2 bg-zinc-50 p-3.5 rounded-2xl border border-zinc-200/80">
+                <input 
+                  type="text"
+                  value={newToppingEmoji}
+                  onChange={(e) => setNewToppingEmoji(e.target.value)}
+                  className="w-12 text-center border border-zinc-300 rounded-xl py-2 text-sm bg-white focus:outline-none focus:border-amber-500"
+                  placeholder="🍯"
+                />
+                <input 
+                  type="text"
+                  value={newToppingName}
+                  onChange={(e) => setNewToppingName(e.target.value)}
+                  onKeyDown={(e) => { if (e.key === "Enter") handleAddTopping(); }}
+                  className="flex-1 min-w-[180px] border border-zinc-300 rounded-xl px-3 py-2 text-xs bg-white focus:outline-none focus:border-amber-500 font-medium"
+                  placeholder="Nombre del topping o salsa (ej: Chips de Chocolate, Miel, Granola)"
+                />
+                <button
+                  type="button"
+                  onClick={handleAddTopping}
+                  className="bg-amber-600 hover:bg-amber-700 text-white text-xs font-bold px-4 py-2 rounded-xl transition-colors flex items-center gap-1.5"
+                >
+                  <Plus size={14} />
+                  <span>Agregar Topping</span>
+                </button>
+              </div>
+
+              {/* Toppings Badges Grid */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                {cupConfig.toppings.map((top) => (
+                  <div 
+                    key={top.id}
+                    className={`p-3.5 rounded-2xl border transition-all flex items-center justify-between gap-3 ${
+                      top.available 
+                        ? "bg-white border-zinc-200 hover:border-zinc-300 shadow-2xs" 
+                        : "bg-zinc-50 border-dashed border-zinc-300 opacity-60"
+                    }`}
+                  >
+                    <div className="flex items-center gap-2.5 min-w-0">
+                      <span className="text-xl shrink-0">{top.emoji || "🍯"}</span>
+                      <span className="text-xs font-bold text-zinc-900 truncate">{top.name}</span>
+                    </div>
+
+                    <div className="flex items-center gap-1.5 shrink-0">
+                      <button
+                        type="button"
+                        onClick={() => handleToggleIngredient("toppings", top.id)}
+                        className={`text-[10px] font-bold px-2.5 py-1 rounded-lg transition-colors ${
+                          top.available
+                            ? "bg-emerald-50 text-emerald-700 hover:bg-emerald-100"
+                            : "bg-zinc-200 text-zinc-600 hover:bg-zinc-300"
+                        }`}
+                        title={top.available ? "Disponible" : "Pausado"}
+                      >
+                        {top.available ? "En Stock" : "Agotado"}
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => handleDeleteIngredient("toppings", top.id)}
+                        className="p-1.5 text-zinc-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-colors"
+                        title="Eliminar topping"
+                      >
+                        <Trash2 size={13} />
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* Bottom Save Action Bar */}
+            <div className="bg-zinc-900 text-white rounded-3xl p-5 sm:p-6 flex flex-wrap items-center justify-between gap-4 shadow-xl">
+              <div>
+                <h4 className="font-extrabold text-sm text-white flex items-center gap-2">
+                  <Check size={16} className="text-emerald-400" />
+                  <span>¿Terminaste de configurar tus vasos?</span>
+                </h4>
+                <p className="text-xs text-zinc-400">
+                  Los cambios se guardan directamente en Supabase y se actualizan al instante en el menú online.
+                </p>
+              </div>
+
+              <button
+                onClick={handleSaveCupConfig}
+                disabled={isSavingCupConfig}
+                className="bg-rose-500 hover:bg-rose-600 text-white text-xs font-extrabold px-6 py-3 rounded-xl transition-all shadow-md flex items-center gap-2 active:scale-95 disabled:opacity-50"
+              >
+                {isSavingCupConfig ? (
+                  <Loader2 size={16} className="animate-spin" />
+                ) : (
+                  <Save size={16} />
+                )}
+                <span>Guardar Configuración</span>
+              </button>
+            </div>
+
+          </div>
+        ) : (
+          /* TRADITIONAL PRODUCTS CATALOG VIEW */
+          <>
+            {/* Modal: Crear Nueva Categoría */}
+            {isAddingCategory && (
+              <div className="mb-6 bg-white p-5 rounded-2xl border border-emerald-300 shadow-md animate-in fade-in slide-in-from-top-2 duration-200">
+                <h4 className="font-extrabold text-sm text-zinc-900 mb-2 flex items-center gap-2">
+                  <Plus size={16} className="text-emerald-700" />
+                  <span>Agregar Nueva Categoría al Menú</span>
+                </h4>
+                <div className="flex flex-col sm:flex-row items-center gap-2">
+                  <input 
+                    type="text" 
+                    value={newCategoryName}
+                    onChange={(e) => setNewCategoryName(e.target.value)}
+                    placeholder="Nombre de la nueva categoría (ej: Smoothies & Jugos Naturales)"
+                    className="w-full sm:flex-1 border border-zinc-300 focus:border-emerald-600 rounded-xl px-3.5 py-2 text-xs outline-none font-medium"
+                    autoFocus
+                  />
+                  <div className="flex items-center gap-2 w-full sm:w-auto">
+                    <button
+                      onClick={handleCreateCategory}
+                      className="flex-1 sm:flex-none bg-emerald-700 hover:bg-emerald-800 text-white text-xs font-bold px-4 py-2 rounded-xl transition-colors"
+                    >
+                      Guardar Categoría
+                    </button>
+                    <button
+                      onClick={() => setIsAddingCategory(false)}
+                      className="flex-1 sm:flex-none bg-zinc-100 hover:bg-zinc-200 text-zinc-600 text-xs font-bold px-4 py-2 rounded-xl transition-colors"
+                    >
+                      Cancelar
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Categories & Products List */}
+            <div className="space-y-8">
           {categoriesList.map((catName) => {
             const categoryItems = items.filter(i => i.category === catName);
 
@@ -889,6 +1588,8 @@ export default function CortaLaFrutaAdminPage() {
             );
           })}
         </div>
+      </>
+    )}
 
       </main>
 

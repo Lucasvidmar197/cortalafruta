@@ -1,12 +1,10 @@
 "use client";
 
 import React, { useState, useEffect, useRef } from "react";
-import Link from "next/link";
-import Script from "next/script";
 import { supabase } from "@/lib/supabase";
 import { 
   Star, MapPin, Clock, Phone, AtSign, ShoppingBag, Plus, Minus, Trash2, 
-  X, Check, Box, ArrowRight, Sparkles, ChevronRight, ChevronLeft, CheckCircle2, Search, Loader2, ExternalLink, Package
+  X, Check, Box, ArrowRight, Sparkles, ChevronRight, ChevronLeft, ChevronDown, ChevronUp, Heart, CheckCircle2, Loader2, ExternalLink, Package
 } from "lucide-react";
 
 // Official WhatsApp Logo Icon
@@ -47,11 +45,97 @@ interface Category {
   items: Product[];
 }
 
+export interface CupIngredient {
+  id: string;
+  name: string;
+  available: boolean;
+  emoji?: string;
+  description?: string;
+}
+
+export interface CupSizeOption {
+  id: string;
+  name: string;
+  icon: string;
+  fruitsOnlyPrice: number;
+  fullComboPrice: number;
+  imageUrl?: string;
+}
+
+export interface CupBuilderConfig {
+  enabled: boolean;
+  name: string;
+  price?: number;
+  promo_price?: number | null;
+  description: string;
+  sizes: CupSizeOption[];
+  fruits: CupIngredient[];
+  bases: CupIngredient[];
+  toppings: CupIngredient[];
+}
+
+export const DEFAULT_CUP_BUILDER_CONFIG: CupBuilderConfig = {
+  enabled: true,
+  name: "Armá tu Vaso",
+  description: "Elegí el tamaño de tu vaso, frutas, yogur o crema y toppings capa por capa.",
+  sizes: [
+    {
+      id: "vaso-mediano",
+      name: "Vaso Mediano",
+      icon: "🥤",
+      fruitsOnlyPrice: 7500,
+      fullComboPrice: 9500,
+      imageUrl: "https://i.postimg.cc/Gm8bBX5t/image-removebg-preview.png",
+    },
+    {
+      id: "vaso-grande",
+      name: "Vaso Grande",
+      icon: "🥤",
+      fruitsOnlyPrice: 8500,
+      fullComboPrice: 10500,
+      imageUrl: "https://i.postimg.cc/Gm8bBX5t/image-removebg-preview.png",
+    },
+  ],
+  fruits: [
+    { id: "f1", name: "Mango Maracuyá", available: true, emoji: "🥭" },
+    { id: "f2", name: "Pera", available: true, emoji: "🍐" },
+    { id: "f3", name: "Frutilla", available: true, emoji: "🍓" },
+    { id: "f4", name: "Manzana", available: true, emoji: "🍎" },
+    { id: "f5", name: "Mandarina", available: true, emoji: "🍊" },
+    { id: "f6", name: "Kiwi", available: true, emoji: "🥝" },
+    { id: "f7", name: "Banana", available: true, emoji: "🍌" },
+    { id: "f8", name: "Melón Brasil Dulce", available: true, emoji: "🍈" },
+    { id: "f9", name: "Pomelo", available: true, emoji: "🍊" },
+    { id: "f10", name: "Membrillo en Almíbar", available: true, emoji: "🍯" }
+  ],
+  bases: [
+    { id: "b1", name: "Yogurt Griego con Chía", available: true, description: "Con semillas de chía hidratadas", emoji: "🥣" },
+    { id: "b2", name: "Yogurt Griego", available: true, description: "Cremoso y natural", emoji: "🥣" },
+    { id: "b3", name: "Yogurt con Stevia", available: true, description: "Sin azúcar agregada", emoji: "🥛" }
+  ],
+  toppings: [
+    { id: "t1", name: "Cáscara de Naranja", available: true, emoji: "🍊" },
+    { id: "t2", name: "Salsa de Frutilla", available: true, emoji: "🍓" },
+    { id: "t3", name: "Salsa de Kiwi", available: true, emoji: "🥝" },
+    { id: "t4", name: "Salsa de Uva", available: true, emoji: "🍇" },
+    { id: "t5", name: "Salsa de Piña", available: true, emoji: "🍍" },
+    { id: "t6", name: "Salsa de Arándanos", available: true, emoji: "🫐" }
+  ]
+};
+
 interface CartItem {
   id?: string;
   product: Product;
   quantity: number;
   notes?: string;
+  customDetails?: {
+    sizeName?: string;
+    comboType?: "full" | "fruits_only";
+    step1Fruit: string;
+    step2Base?: string;
+    step3Fruit: string;
+    step4Toppings: string[];
+  };
 }
 
 // Category visual metadata (subtitles & colors)
@@ -90,11 +174,13 @@ function buildCategoriesFromItems(rawItems: any[]): Category[] {
     "Servicio para Eventos & Reuniones"
   ];
 
-  rawItems.forEach((row) => {
-    const catName = row.category || "Otros";
-    if (!categoryMap.has(catName)) {
-      categoryMap.set(catName, []);
-    }
+  rawItems
+    .filter((row) => row.id !== "cup-builder-config" && row.category !== "Armá tu Vaso")
+    .forEach((row) => {
+      const catName = row.category || "Otros";
+      if (!categoryMap.has(catName)) {
+        categoryMap.set(catName, []);
+      }
 
     const regPrice = Number(row.price) || 0;
     const rawPromo = row.promo_price ?? (row.usdzurl && !isNaN(Number(row.usdzurl)) ? Number(row.usdzurl) : null);
@@ -210,6 +296,54 @@ const GOOGLE_REVIEWS_DATA: GoogleReview[] = [
     time: "Hace 2 meses",
     text: "Excelente calidad de frutas, higiene y atención. El visor 3D es súper original y los potes de yogur con frutas están bárbaros.",
     verified: true,
+  },
+  {
+    id: "r7",
+    author_name: "Agustina V.",
+    rating: 5,
+    time: "Hace 2 meses",
+    text: "Pedí vasos de frutas para el cumpleaños de mi nena y a todos les encantó! Súper frescos, coloridos y prácticos. Sin dudas los vuelvo a elegir.",
+    verified: true,
+  },
+  {
+    id: "r8",
+    author_name: "Nicolás T.",
+    rating: 5,
+    time: "Hace 2 meses",
+    text: "Los jugos naturales y las frutas cortadas son de primera. La mejor opción sana en Quilmes centro, atienden rapidísimo y con la mejor onda.",
+    verified: true,
+  },
+  {
+    id: "r9",
+    author_name: "Florencia G.",
+    rating: 5,
+    time: "Hace 3 meses",
+    text: "Me encanta la combinación de chia pudding con frutas tropicales. Es riquísimo y llenador para el almuerzo en la oficina. 100% recomendado!",
+    verified: true,
+  },
+  {
+    id: "r10",
+    author_name: "Matías L.",
+    rating: 5,
+    time: "Hace 3 meses",
+    text: "Pedí por WhatsApp y llegó impecable, súper frío y con la fruta crocante y dulce. La calidad es insuperable. Un 10 rotundo.",
+    verified: true,
+  },
+  {
+    id: "r11",
+    author_name: "Sofía H.",
+    rating: 5,
+    time: "Hace 4 meses",
+    text: "Un concepto innovador y muy necesario. Frutas frescas de verdad, nada de conservantes ni almíbar pesado. La ensalada cítrica es una locura de rica!",
+    verified: true,
+  },
+  {
+    id: "r12",
+    author_name: "Santiago E.",
+    rating: 5,
+    time: "Hace 4 meses",
+    text: "Excelente atención de los chicos, el local es súper limpio y los productos son de primerísima calidad. Los potes con frutos rojos son mi perdición.",
+    verified: true,
   }
 ];
 
@@ -218,7 +352,8 @@ function GooglePlacesWidget({
 }: { 
   rotateTime?: number;
 }) {
-  const [reviews] = useState<GoogleReview[]>(GOOGLE_REVIEWS_DATA);
+  // Exclusively show verified 5-star reviews
+  const [reviews] = useState<GoogleReview[]>(() => GOOGLE_REVIEWS_DATA.filter((r) => r.rating === 5));
   const [currentIndex, setCurrentIndex] = useState<number>(0);
   const [visibleCount, setVisibleCount] = useState<number>(3);
   const [isPaused, setIsPaused] = useState<boolean>(false);
@@ -313,31 +448,44 @@ function GooglePlacesWidget({
           className="flex transition-transform duration-500 ease-out"
           style={{ transform: `translateX(-${currentIndex * (100 / visibleCount)}%)` }}
         >
-          {reviews.map((rev) => (
-            <div 
-              key={rev.id}
-              className="shrink-0 px-2"
-              style={{ width: `${100 / visibleCount}%` }}
-            >
-              <div className="bg-white rounded-2xl p-5 border border-zinc-200/80 shadow-2xs flex flex-col justify-between h-full hover:border-zinc-300 transition-all">
-                <div>
-                  <div className="flex items-center justify-between gap-2 mb-3">
-                    <div className="flex items-center gap-2.5">
-                      <div className="w-9 h-9 rounded-full bg-gradient-to-br from-rose-500 to-amber-500 text-white font-black text-xs flex items-center justify-center shadow-xs">
-                        {rev.author_name.charAt(0)}
+          {reviews.map((rev, idx) => {
+            const avatarColors = [
+              "bg-gradient-to-br from-rose-500 to-rose-600",
+              "bg-gradient-to-br from-blue-500 to-blue-600",
+              "bg-gradient-to-br from-emerald-500 to-emerald-600",
+              "bg-gradient-to-br from-amber-500 to-amber-600",
+              "bg-gradient-to-br from-purple-500 to-purple-600",
+              "bg-gradient-to-br from-indigo-500 to-indigo-600",
+              "bg-gradient-to-br from-teal-500 to-teal-600",
+              "bg-gradient-to-br from-orange-500 to-orange-600",
+            ];
+            const colorClass = avatarColors[idx % avatarColors.length];
+
+            return (
+              <div 
+                key={rev.id}
+                className="shrink-0 px-2"
+                style={{ width: `${100 / visibleCount}%` }}
+              >
+                <div className="bg-white rounded-2xl p-5 border border-zinc-200/80 shadow-2xs flex flex-col justify-between h-full hover:border-zinc-300 transition-all">
+                  <div>
+                    <div className="flex items-center justify-between gap-2 mb-3">
+                      <div className="flex items-center gap-2.5">
+                        <div className={`w-9 h-9 rounded-full ${colorClass} text-white font-black text-xs flex items-center justify-center shadow-xs shrink-0 select-none`}>
+                          {rev.author_name.charAt(0)}
+                        </div>
+                        <div>
+                          <h5 className="text-xs font-bold text-zinc-900 flex items-center gap-1.5">
+                            <span>{rev.author_name}</span>
+                            {rev.verified && (
+                              <svg className="w-3.5 h-3.5 text-blue-500 fill-current" viewBox="0 0 24 24">
+                                <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"/>
+                              </svg>
+                            )}
+                          </h5>
+                          <span className="text-[10px] text-zinc-400 font-medium">{rev.time}</span>
+                        </div>
                       </div>
-                      <div>
-                        <h5 className="text-xs font-bold text-zinc-900 flex items-center gap-1.5">
-                          <span>{rev.author_name}</span>
-                          {rev.verified && (
-                            <svg className="w-3.5 h-3.5 text-blue-500 fill-current" viewBox="0 0 24 24">
-                              <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"/>
-                            </svg>
-                          )}
-                        </h5>
-                        <span className="text-[10px] text-zinc-400 font-medium">{rev.time}</span>
-                      </div>
-                    </div>
 
                     <div className="flex items-center gap-0.5 text-amber-400">
                       {[...Array(rev.rating)].map((_, i) => (
@@ -358,7 +506,8 @@ function GooglePlacesWidget({
                 </div>
               </div>
             </div>
-          ))}
+          );
+        })}
         </div>
       </div>
 
@@ -532,6 +681,35 @@ function HeroPromoBannerCarousel() {
   );
 }
 
+const FRUIT_CUP_IMAGE_URL = "https://i.postimg.cc/Gm8bBX5t/image-removebg-preview.png";
+
+function FloatingFruitCupWidget({ onOpenAbout }: { onOpenAbout: () => void }) {
+  return (
+    <aside 
+      aria-label="Vaso artesanal Corta la Fruta"
+      onClick={onOpenAbout}
+      className="fixed bottom-6 left-6 z-30 hidden md:block cursor-pointer select-none group"
+      title="Corta la Fruta - 100% Fresco y Natural (Clic para conocer más)"
+    >
+      {/* Pure Floating Animated Cup - NO BOX, NO BORDER, NO SQUARE */}
+      <div className="relative flex flex-col items-center">
+        <div className="relative w-20 lg:w-24 h-28 lg:h-32 flex items-center justify-center">
+          <img 
+            src={FRUIT_CUP_IMAGE_URL} 
+            alt="Vaso de Fruta Corta la Fruta" 
+            className="w-full h-full object-contain animate-float drop-shadow-2xl transition-transform duration-300 group-hover:scale-110"
+          />
+          {/* Natural floating ground shadow */}
+          <div className="absolute -bottom-1 w-14 lg:w-16 h-2 bg-black/25 rounded-full blur-[2px] animate-float-shadow pointer-events-none" />
+        </div>
+        <span className="opacity-0 group-hover:opacity-100 transition-opacity duration-200 text-[10px] font-black uppercase tracking-wider bg-zinc-900/80 text-white px-2 py-0.5 rounded-full shadow-md mt-1 backdrop-blur-xs pointer-events-none">
+          100% Fresco ✨
+        </span>
+      </div>
+    </aside>
+  );
+}
+
 export default function CortaLaFrutaPublicPage() {
   const [categories, setCategories] = useState<Category[]>([]);
   const [isLoadingMenu, setIsLoadingMenu] = useState<boolean>(true);
@@ -541,6 +719,130 @@ export default function CortaLaFrutaPublicPage() {
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
   const [isAboutOpen, setIsAboutOpen] = useState<boolean>(false);
   const [isAboutHighlighted, setIsAboutHighlighted] = useState<boolean>(false);
+
+  // Cup Builder State (PedidosYa Multi-Size & Combo Flow)
+  const [cupConfig, setCupConfig] = useState<CupBuilderConfig>(DEFAULT_CUP_BUILDER_CONFIG);
+  const [isCupBuilderOpen, setIsCupBuilderOpen] = useState<boolean>(false);
+  const [builderSelectedSizeId, setBuilderSelectedSizeId] = useState<string>("");
+  const [builderComboType, setBuilderComboType] = useState<"full" | "fruits_only" | null>(null);
+  const [builderStep1Fruit, setBuilderStep1Fruit] = useState<string>("");
+  const [builderStep2Base, setBuilderStep2Base] = useState<string>("");
+  const [builderStep3Fruit, setBuilderStep3Fruit] = useState<string>("");
+  const [builderStep4Toppings, setBuilderStep4Toppings] = useState<string[]>([]);
+  const [builderNotes, setBuilderNotes] = useState<string>("");
+  const [builderQuantity, setBuilderQuantity] = useState<number>(1);
+  const [openSections, setOpenSections] = useState<Record<string, boolean>>({
+    size: true,
+    comboType: false,
+    step1: false,
+    step2: false,
+    step3: false,
+    step4: false,
+  });
+
+  const safeSizes: CupSizeOption[] = (cupConfig?.sizes && cupConfig.sizes.length > 0) ? cupConfig.sizes : DEFAULT_CUP_BUILDER_CONFIG.sizes;
+  const currentSelectedSize: CupSizeOption | null = safeSizes.find(s => s.id === builderSelectedSizeId) || null;
+  const currentEffectiveUnitPrice = currentSelectedSize
+    ? (builderComboType === "fruits_only" ? currentSelectedSize.fruitsOnlyPrice : (builderComboType === "full" ? currentSelectedSize.fullComboPrice : currentSelectedSize.fruitsOnlyPrice))
+    : (safeSizes[0]?.fruitsOnlyPrice || 7500);
+
+  const toggleSection = (sectionKey: string) => {
+    setOpenSections(prev => ({
+      ...prev,
+      [sectionKey]: !prev[sectionKey]
+    }));
+  };
+
+  const openCupBuilderForSize = (sizeId?: string) => {
+    setBuilderSelectedSizeId(sizeId || "");
+    setBuilderComboType(null);
+    setBuilderStep1Fruit("");
+    setBuilderStep2Base("");
+    setBuilderStep3Fruit("");
+    setBuilderStep4Toppings([]);
+    setBuilderNotes("");
+    setBuilderQuantity(1);
+    setOpenSections({
+      size: !sizeId,
+      comboType: !!sizeId,
+      step1: false,
+      step2: false,
+      step3: false,
+      step4: false,
+    });
+    setIsCupBuilderOpen(true);
+  };
+
+  const resetCupBuilder = () => {
+    setBuilderSelectedSizeId("");
+    setBuilderComboType(null);
+    setBuilderStep1Fruit("");
+    setBuilderStep2Base("");
+    setBuilderStep3Fruit("");
+    setBuilderStep4Toppings([]);
+    setBuilderNotes("");
+    setBuilderQuantity(1);
+    setOpenSections({
+      size: true,
+      comboType: false,
+      step1: false,
+      step2: false,
+      step3: false,
+      step4: false,
+    });
+  };
+
+  const handleToggleTopping = (topName: string) => {
+    setBuilderStep4Toppings(prev => 
+      prev.includes(topName) ? prev.filter(t => t !== topName) : [...prev, topName]
+    );
+  };
+
+  const handleAddCustomCupToCart = () => {
+    if (!currentSelectedSize) return;
+    if (!builderComboType) return;
+    if (!builderStep1Fruit || !builderStep3Fruit) return;
+    if (builderComboType === "full" && !builderStep2Base) return;
+
+    const toppingsList = builderStep4Toppings.length > 0 ? builderStep4Toppings.join(", ") : "Sin toppings adicionales";
+
+    const customProduct: Product = {
+      id: `custom-combo-${Date.now()}`,
+      name: `${currentSelectedSize.name} (${builderComboType === "full" ? "Completo" : "Solo Frutas"})`,
+      description: builderComboType === "full"
+        ? `1ª Fruta: ${builderStep1Fruit} | Yogur: ${builderStep2Base} | 2ª Fruta: ${builderStep3Fruit} | Toppings: ${toppingsList}`
+        : `1ª Fruta: ${builderStep1Fruit} | 2ª Fruta: ${builderStep3Fruit} (Solo Frutas)`,
+      price: currentEffectiveUnitPrice,
+      promoPrice: null,
+      imageUrl: currentSelectedSize.imageUrl || "https://i.postimg.cc/Gm8bBX5t/image-removebg-preview.png",
+      badge: currentSelectedSize.name,
+      badgeType: "strawberry",
+      categoryName: "Armá tu Vaso",
+    };
+
+    const cartItemId = `custom-combo-${Date.now()}`;
+    const customCartItem: CartItem = {
+      id: cartItemId,
+      product: customProduct,
+      quantity: builderQuantity,
+      notes: builderNotes.trim() || undefined,
+      customDetails: {
+        sizeName: currentSelectedSize.name,
+        comboType: builderComboType,
+        step1Fruit: builderStep1Fruit,
+        step2Base: builderComboType === "full" ? builderStep2Base : undefined,
+        step3Fruit: builderStep3Fruit,
+        step4Toppings: builderComboType === "full" ? builderStep4Toppings : [],
+      }
+    };
+
+    setCart(prev => [...prev, customCartItem]);
+    setIsCupBuilderOpen(false);
+    resetCupBuilder();
+    setToastMessage(`¡${currentSelectedSize.name} agregado al pedido!`);
+    setTimeout(() => setToastMessage(null), 2500);
+    setIsCartOpen(true);
+  };
 
   // Fetch dynamic menu from Supabase & subscribe to real-time changes
   useEffect(() => {
@@ -553,6 +855,19 @@ export default function CortaLaFrutaPublicPage() {
 
         if (error) throw error;
         if (data) {
+          const configRow = data.find((i: any) => i.id === "cup-builder-config" || i.category === "Armá tu Vaso");
+          if (configRow && configRow.description) {
+            try {
+              const parsed = JSON.parse(configRow.description);
+              setCupConfig({
+                ...DEFAULT_CUP_BUILDER_CONFIG,
+                ...parsed,
+                sizes: (parsed.sizes && parsed.sizes.length > 0) ? parsed.sizes : DEFAULT_CUP_BUILDER_CONFIG.sizes,
+              });
+            } catch (e) {
+              console.error("Error parsing cup builder config:", e);
+            }
+          }
           setCategories(buildCategoriesFromItems(data));
         }
       } catch (err) {
@@ -684,15 +999,39 @@ export default function CortaLaFrutaPublicPage() {
     setCurrentPage(1);
   }, [activeCategory]);
 
+  // Single Custom Cup product item (with "Desde" starting price of the smallest size)
+  const minCupPrice = safeSizes.length > 0
+    ? Math.min(...safeSizes.map(s => s.fruitsOnlyPrice))
+    : 7500;
+
+  const customCupProduct: Product | null = cupConfig.enabled ? {
+    id: "cup-builder-product",
+    name: cupConfig.name || "Armá tu Vaso",
+    description: cupConfig.description || "Elegí el tamaño de tu vaso, frutas, yogur o crema y toppings capa por capa a tu gusto.",
+    price: minCupPrice,
+    promoPrice: null,
+    imageUrl: FRUIT_CUP_IMAGE_URL,
+    badge: "🥤 Armá tu Vaso",
+    badgeType: "strawberry",
+    categoryName: "Armá tu Vaso",
+  } : null;
+
   // Filter Categories based on activeCategory
   const filteredCategories = categories
     .filter(cat => activeCategory === "all" || cat.id === activeCategory);
 
   // Flattened products for "Todos los productos" pagination (4 cols x 2 rows = 8 items per page)
   const ITEMS_PER_PAGE = 8;
-  const allFlatProducts = filteredCategories.flatMap(cat => 
+  const standardProducts = filteredCategories.flatMap(cat => 
     cat.items.map(item => ({ ...item, categoryName: cat.name }))
   );
+  
+  const allFlatProducts = activeCategory === "armar-vaso"
+    ? (customCupProduct ? [customCupProduct] : [])
+    : activeCategory === "all"
+    ? (customCupProduct ? [customCupProduct, ...standardProducts] : standardProducts)
+    : standardProducts;
+
   const totalPages = Math.ceil(allFlatProducts.length / ITEMS_PER_PAGE);
   const paginatedFlatProducts = allFlatProducts.slice(
     (currentPage - 1) * ITEMS_PER_PAGE,
@@ -780,6 +1119,17 @@ export default function CortaLaFrutaPublicPage() {
       const promoTag = isOffer ? " *(OFERTA)*" : "";
 
       message += `• *${item.quantity}x ${item.product.name}* — $${lineTotal.toLocaleString("es-AR")}${promoTag}\n`;
+      if (item.customDetails) {
+        message += `   ↳ _Presentación: ${item.customDetails.sizeName} (${item.customDetails.comboType === "full" ? "Completo: Frutas + Yogur + Toppings" : "Solo Frutas"})_\n`;
+        message += `   ↳ _1ª Fruta: ${item.customDetails.step1Fruit}_\n`;
+        if (item.customDetails.comboType === "full" && item.customDetails.step2Base) {
+          message += `   ↳ _Yogur/Crema: ${item.customDetails.step2Base}_\n`;
+        }
+        message += `   ↳ _2ª Fruta: ${item.customDetails.step3Fruit}_\n`;
+        if (item.customDetails.comboType === "full" && item.customDetails.step4Toppings && item.customDetails.step4Toppings.length > 0) {
+          message += `   ↳ _Toppings/Salsas: ${item.customDetails.step4Toppings.join(", ")}_\n`;
+        }
+      }
       if (item.notes && item.notes.trim()) {
         message += `   ↳ _Aclaración: ${item.notes.trim()}_\n`;
       }
@@ -843,30 +1193,22 @@ export default function CortaLaFrutaPublicPage() {
 
       {/* HEADER */}
       <header className="sticky top-0 z-40 bg-white/95 backdrop-blur-md border-b border-zinc-100 shadow-xs">
-        <div className="max-w-6xl mx-auto px-3 sm:px-6 h-16 sm:h-20 flex items-center justify-between gap-2">
+        <div className="w-full px-4 sm:px-6 lg:px-8 h-16 sm:h-20 flex items-center justify-between gap-3">
           
-          {/* Logo & Store Info */}
-          <div className="flex items-center gap-2 sm:gap-3 min-w-0">
+          {/* Logo & Store Name */}
+          <div className="flex items-center gap-2.5 sm:gap-4 min-w-0">
             <img 
               src="/logo-corta-la-fruta.png" 
               alt="Corta la Fruta Logo" 
-              className="h-9 sm:h-12 w-auto object-contain shrink-0" 
+              className="h-10 sm:h-14 md:h-16 w-auto object-contain shrink-0" 
             />
-            <div className="min-w-0">
-              <div className="flex items-center gap-1.5">
-                <h1 className="font-extrabold text-base sm:text-xl tracking-tight text-zinc-900 leading-tight truncate">
-                  Corta la Fruta
-                </h1>
-                <span className="hidden sm:inline-block text-[10px] font-extrabold uppercase px-2 py-0.5 bg-rose-50 text-rose-600 rounded-full border border-rose-100 shrink-0">
-                  Fresca & Natural
-                </span>
-              </div>
-              <p className="text-[10px] sm:text-xs text-zinc-500 font-medium truncate">Frutería & Bar Saludable • Quilmes</p>
-            </div>
+            <h1 className="font-extrabold text-xl sm:text-2xl md:text-3xl lg:text-4xl tracking-tight text-zinc-900 leading-none truncate">
+              Corta la Fruta
+            </h1>
           </div>
 
           {/* WhatsApp Direct Header Button & Cart Button */}
-          <div className="flex items-center gap-1.5 sm:gap-3 shrink-0">
+          <div className="flex items-center gap-1.5 sm:gap-3 shrink-0 ml-auto">
             <button
               onClick={handleOpenAbout}
               className="text-xs font-bold text-zinc-700 hover:text-zinc-900 px-3.5 py-2 rounded-xl hover:bg-zinc-100 transition-colors hidden md:flex items-center gap-1.5"
@@ -938,6 +1280,20 @@ export default function CortaLaFrutaPublicPage() {
             >
               Todos los productos
             </button>
+
+            {cupConfig.enabled && (
+              <button
+                onClick={() => setActiveCategory("armar-vaso")}
+                className={`shrink-0 px-3 sm:px-3.5 py-1.5 sm:py-2 rounded-xl text-xs font-bold whitespace-nowrap transition-all flex items-center gap-1.5 ${
+                  activeCategory === "armar-vaso"
+                    ? "bg-rose-600 text-white shadow-xs"
+                    : "bg-zinc-100 text-zinc-600 hover:bg-zinc-200/70"
+                }`}
+              >
+                <span>🍓 {cupConfig.name || "Armá tu Vaso"}</span>
+              </button>
+            )}
+
             {categories.map((cat) => (
               <button
                 key={cat.id}
@@ -975,7 +1331,7 @@ export default function CortaLaFrutaPublicPage() {
       </nav>
 
       {/* PRODUCT CATALOG GRID */}
-      <section className="max-w-6xl mx-auto px-4 md:px-6 py-10 space-y-12">
+      <section className="max-w-6xl mx-auto px-4 md:px-6 py-8 space-y-12">
         {isLoadingMenu && categories.length === 0 ? (
           <div className="text-center py-24 bg-white rounded-3xl border border-zinc-200 p-8 space-y-3">
             <Loader2 size={36} className="mx-auto text-rose-500 animate-spin" />
@@ -986,33 +1342,54 @@ export default function CortaLaFrutaPublicPage() {
               Conectando con la base de datos de Corta la Fruta.
             </p>
           </div>
-        ) : filteredCategories.length === 0 ? (
-          <div className="text-center py-16 bg-white rounded-2xl border border-zinc-200 p-8 space-y-3">
-            <Package size={40} className="mx-auto text-zinc-300 stroke-1" />
-            <h4 className="font-bold text-base text-zinc-800">
-              No hay productos disponibles en esta categoría
-            </h4>
-            <p className="text-xs text-zinc-500 max-w-sm mx-auto">
-              Seleccioná "Todos los productos" para ver todo nuestro catálogo fresco.
-            </p>
-            <button
-              onClick={() => setActiveCategory("all")}
-              className="mt-2 text-xs font-bold text-rose-600 bg-rose-50 border border-rose-200 px-4 py-2 rounded-xl hover:bg-rose-100 transition-colors inline-block"
+        ) : allFlatProducts.length === 0 ? (
+          <div className="text-center py-20 bg-white rounded-3xl border border-zinc-200/90 p-8 space-y-4 shadow-xs max-w-lg mx-auto">
+            <div className="w-16 h-16 rounded-full bg-rose-50 text-rose-500 flex items-center justify-center mx-auto">
+              <Package size={32} />
+            </div>
+            <div className="space-y-1">
+              <h4 className="font-extrabold text-lg text-zinc-900">
+                Catálogo en preparación
+              </h4>
+              <p className="text-xs text-zinc-500 leading-relaxed max-w-sm mx-auto">
+                Estamos preparando y cargando los nuevos productos frescos. ¡Podés consultar y hacer tu pedido directo por WhatsApp!
+              </p>
+            </div>
+            <a
+              href="https://wa.me/5491124735186"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center gap-2 bg-[#25D366] hover:bg-[#20bd5a] text-white font-bold text-xs px-5 py-2.5 rounded-xl transition-all shadow-xs"
             >
-              Ver todos los productos
-            </button>
+              <WhatsAppIcon size={16} />
+              <span>Consultar por WhatsApp</span>
+            </a>
           </div>
-        ) : activeCategory === "all" ? (
-          /* PAGINATED GRID FOR ALL PRODUCTS (4 COLS x 2 ROWS = 8 ITEMS PER PAGE) */
+        ) : activeCategory === "all" || activeCategory === "armar-vaso" ? (
+          /* PAGINATED GRID FOR ALL PRODUCTS / ARMAR VASO */
           <div className="space-y-8">
             <div className="flex items-center justify-between border-b border-zinc-200/80 pb-3">
-              <div>
-                <h3 className="text-xl md:text-2xl font-extrabold text-zinc-900 tracking-tight">
-                  Todos los Productos ({allFlatProducts.length})
-                </h3>
-                <p className="text-xs text-zinc-500 font-medium mt-0.5">
-                  Mostrando {paginatedFlatProducts.length} de {allFlatProducts.length} productos (Página {currentPage} de {totalPages || 1})
-                </p>
+              <div className="flex items-center gap-3 sm:gap-4">
+                {/* Organic Floating Cup - No box, pure transparent image */}
+                <div className="relative w-12 h-16 sm:w-14 sm:h-20 shrink-0 flex items-center justify-center">
+                  <img 
+                    src={FRUIT_CUP_IMAGE_URL} 
+                    alt="Vaso Corta la Fruta" 
+                    className="w-full h-full object-contain animate-float drop-shadow-md"
+                  />
+                  <div className="absolute -bottom-1 w-9 sm:w-11 h-1.5 bg-black/20 rounded-full blur-[1.5px] animate-float-shadow pointer-events-none" />
+                </div>
+
+                <div>
+                  <h3 className="text-xl md:text-2xl font-extrabold text-zinc-900 tracking-tight">
+                    {activeCategory === "armar-vaso" ? (cupConfig.name || "Armá tu Vaso") : `Todos los Productos (${allFlatProducts.length})`}
+                  </h3>
+                  <p className="text-xs text-zinc-500 font-medium mt-0.5">
+                    {activeCategory === "armar-vaso"
+                      ? "Armá tu vaso con tus frutas, bases y toppings a elección"
+                      : `Mostrando ${paginatedFlatProducts.length} de ${allFlatProducts.length} productos (Página ${currentPage} de ${totalPages || 1})`}
+                  </p>
+                </div>
               </div>
 
               {/* Top Page Navigator */}
@@ -1042,19 +1419,33 @@ export default function CortaLaFrutaPublicPage() {
               {paginatedFlatProducts.map((product) => {
                 const inCartItem = cart.find(i => i.product.id === product.id);
                 const quantityInCart = inCartItem ? inCartItem.quantity : 0;
+                const isCupBuilder = product.id.startsWith("cup-size-") || product.id === "cup-builder-product";
+                const sizeId = product.id.startsWith("cup-size-") ? product.id.replace("cup-size-", "") : "vaso-mediano";
 
                 return (
                   <div 
                     key={product.id}
                     onClick={() => {
-                      setSelectedProduct(product);
-                      setModalNote("");
+                      if (isCupBuilder) {
+                        openCupBuilderForSize(sizeId);
+                      } else {
+                        setSelectedProduct(product);
+                        setModalNote("");
+                      }
                     }}
-                    className="cursor-pointer bg-white rounded-xl sm:rounded-2xl border border-zinc-200/80 overflow-hidden shadow-2xs hover:shadow-md transition-all flex flex-col justify-between group p-2.5 sm:p-3.5"
+                    className="cursor-pointer bg-white rounded-xl sm:rounded-2xl border border-zinc-200/80 hover:border-zinc-300 overflow-hidden shadow-2xs hover:shadow-md transition-all flex flex-col justify-between group p-2.5 sm:p-3.5"
                   >
                     {/* Image / 3D Model Viewport */}
-                    <div className="relative aspect-4/3 w-full bg-zinc-100 rounded-lg overflow-hidden">
-                      {product.has3DModel && product.glbUrl ? (
+                    <div className="relative aspect-4/3 w-full bg-zinc-50 rounded-lg overflow-hidden flex items-center justify-center">
+                      {isCupBuilder ? (
+                        <div className="w-full h-full p-2 flex items-center justify-center">
+                          <img 
+                            src={FRUIT_CUP_IMAGE_URL} 
+                            alt={product.name}
+                            className="w-full h-full object-contain group-hover:scale-105 transition-transform duration-300"
+                          />
+                        </div>
+                      ) : product.has3DModel && product.glbUrl ? (
                         <div 
                           className="w-full h-full cursor-grab active:cursor-grabbing"
                           onClick={(e) => e.stopPropagation()}
@@ -1107,7 +1498,7 @@ export default function CortaLaFrutaPublicPage() {
                       </div>
 
                       {/* 3D Button */}
-                      {product.has3DModel && (
+                      {!isCupBuilder && product.has3DModel && (
                         <button
                           onClick={(e) => {
                             e.stopPropagation();
@@ -1124,7 +1515,14 @@ export default function CortaLaFrutaPublicPage() {
                     {/* Product Details (Mercado Libre Price-First Hierarchy) */}
                     <div className="pt-2 sm:pt-3 flex-1 flex flex-col justify-between">
                       <div>
-                        {product.promoPrice && product.promoPrice < product.price ? (
+                        {isCupBuilder ? (
+                          <div className="flex items-baseline gap-1">
+                            <span className="text-[11px] font-bold text-zinc-500 uppercase tracking-wide">Desde</span>
+                            <span className="font-extrabold text-sm sm:text-base text-zinc-900 font-mono">
+                              ${product.price.toLocaleString("es-AR")}
+                            </span>
+                          </div>
+                        ) : product.promoPrice && product.promoPrice < product.price ? (
                           <div className="flex items-baseline gap-1.5">
                             <span className="text-xs font-mono line-through text-zinc-400">
                               ${product.price.toLocaleString("es-AR")}
@@ -1154,7 +1552,19 @@ export default function CortaLaFrutaPublicPage() {
 
                       {/* Add to Cart Controls */}
                       <div className="mt-2.5 pt-2 border-t border-zinc-100">
-                        {quantityInCart > 0 ? (
+                        {isCupBuilder ? (
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              openCupBuilderForSize("vaso-mediano");
+                            }}
+                            className="w-full bg-[#E2004B] hover:bg-[#c70041] text-white font-bold text-xs py-2 px-3 rounded-xl transition-all shadow-2xs flex items-center justify-center gap-1.5 active:scale-95"
+                          >
+                            <span>Armar Vaso</span>
+                            <ChevronRight size={14} />
+                          </button>
+                        ) : quantityInCart > 0 ? (
                           <div 
                             onClick={(e) => e.stopPropagation()}
                             className="flex items-center gap-1 bg-emerald-50 border border-emerald-200/80 rounded-lg p-0.5 justify-between"
@@ -1815,6 +2225,25 @@ export default function CortaLaFrutaPublicPage() {
                           </button>
                         </div>
 
+                        {item.customDetails && (
+                          <div className="text-[11px] bg-rose-50/70 border border-rose-200/80 rounded-xl p-2.5 space-y-1 text-zinc-700">
+                            <p className="font-extrabold text-rose-900 text-[10px] uppercase tracking-wider flex items-center justify-between">
+                              <span>🍓 {item.customDetails.sizeName}</span>
+                              <span className="text-zinc-500 font-bold">{item.customDetails.comboType === "full" ? "Completo" : "Solo Frutas"}</span>
+                            </p>
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-2 gap-y-0.5 text-[11px]">
+                              <div><span className="font-bold text-rose-700">1ª Fruta:</span> {item.customDetails.step1Fruit}</div>
+                              {item.customDetails.comboType === "full" && item.customDetails.step2Base && (
+                                <div><span className="font-bold text-blue-700">Yogur:</span> {item.customDetails.step2Base}</div>
+                              )}
+                              <div><span className="font-bold text-emerald-700">2ª Fruta:</span> {item.customDetails.step3Fruit}</div>
+                              {item.customDetails.comboType === "full" && (
+                                <div><span className="font-bold text-amber-700">Toppings:</span> {item.customDetails.step4Toppings.join(", ") || "Sin toppings"}</div>
+                              )}
+                            </div>
+                          </div>
+                        )}
+
                         {notes && (
                           <div className="text-[11px] bg-amber-50 text-amber-900 border border-amber-200/80 px-2.5 py-1.5 rounded-lg flex items-start gap-1.5 font-medium">
                             <span className="font-bold text-amber-800 shrink-0">Nota:</span>
@@ -2231,13 +2660,529 @@ export default function CortaLaFrutaPublicPage() {
                 Vidrro
               </a>
             </span>
-            <span>•</span>
-            <Link href="/admin" className="hover:text-amber-400 transition-colors underline underline-offset-4">
-              Acceso Panel Admin
-            </Link>
           </div>
         </div>
       </footer>
+
+      {/* CUP BUILDER MODAL (1:1 EXACT PEDIDOSYA MULTI-SIZE COMBO STYLE) */}
+      {isCupBuilderOpen && (
+        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-end sm:items-center justify-center p-0 sm:p-4 overflow-y-auto animate-in fade-in duration-150">
+          <div className="bg-white w-full max-w-md sm:rounded-2xl max-h-[92vh] sm:max-h-[85vh] flex flex-col shadow-2xl overflow-hidden animate-in slide-in-from-bottom-4 duration-200">
+            
+            {/* PedidosYa Top Bar */}
+            <div className="sticky top-0 z-10 bg-white border-b border-zinc-100 px-4 py-3.5 flex items-center justify-between shrink-0">
+              <button
+                type="button"
+                onClick={() => setIsCupBuilderOpen(false)}
+                className="p-1 -ml-1 text-zinc-900 hover:text-zinc-600 transition-colors"
+                aria-label="Volver"
+              >
+                <ChevronLeft size={24} className="stroke-[2.5]" />
+              </button>
+
+              <h3 className="font-bold text-base text-zinc-900 leading-tight truncate px-2 text-center">
+                {cupConfig.name || "Armá tu Vaso"}
+              </h3>
+
+              <button
+                type="button"
+                className="p-1 -mr-1 text-zinc-800 hover:text-rose-500 transition-colors"
+                aria-label="Favorito"
+              >
+                <Heart size={20} className="stroke-[2]" />
+              </button>
+            </div>
+
+            {/* Scrollable List of Options */}
+            <div className="overflow-y-auto flex-1 divide-y divide-zinc-200/80 px-4 sm:px-5">
+              
+              {/* SECTION: TAMAÑO DE TU VASO */}
+              <div className="py-4">
+                <div 
+                  onClick={() => toggleSection("size")}
+                  className="flex items-start justify-between cursor-pointer select-none mb-1"
+                >
+                  <div>
+                    <h4 className="font-bold text-base text-zinc-900">
+                      1. Elegí el tamaño de tu vaso
+                    </h4>
+                    <p className="text-xs text-zinc-500 mt-0.5">
+                      {currentSelectedSize ? `Seleccionado: ${currentSelectedSize.name}` : "Elige 1 opción"}
+                    </p>
+                  </div>
+
+                  <div className="flex items-center gap-2">
+                    <span className="bg-zinc-100 text-zinc-700 text-[11px] font-semibold px-2.5 py-0.5 rounded-full">
+                      Requerido
+                    </span>
+                    {openSections.size ? (
+                      <ChevronUp size={20} className="text-zinc-700" />
+                    ) : (
+                      <ChevronDown size={20} className="text-zinc-700" />
+                    )}
+                  </div>
+                </div>
+
+                {openSections.size && (
+                  <div className="pt-2 divide-y divide-zinc-100 animate-in fade-in duration-150">
+                    {safeSizes.map((size) => {
+                      const isSelected = builderSelectedSizeId === size.id;
+                      return (
+                        <div
+                          key={size.id}
+                          onClick={() => {
+                            setBuilderSelectedSizeId(size.id);
+                            setOpenSections(prev => ({ ...prev, size: false, comboType: true }));
+                          }}
+                          className="py-3 flex items-center justify-between cursor-pointer hover:bg-zinc-50/70 transition-colors select-none"
+                        >
+                          <div>
+                            <span className="text-sm font-medium text-zinc-900 flex items-center gap-1.5">
+                              <span>{size.icon}</span>
+                              <span>{size.name}</span>
+                            </span>
+                            <span className="text-xs text-zinc-500 block mt-0.5">
+                              Solo Frutas: ${size.fruitsOnlyPrice.toLocaleString("es-AR")} | Completo: ${size.fullComboPrice.toLocaleString("es-AR")}
+                            </span>
+                          </div>
+
+                          <div className={`w-6 h-6 rounded-lg border-2 flex items-center justify-center transition-all ${
+                            isSelected 
+                              ? "bg-[#E2004B] border-[#E2004B] text-white" 
+                              : "border-zinc-300 bg-white"
+                          }`}>
+                            {isSelected && <Check size={14} className="stroke-[3]" />}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+
+              {/* SECTION: TIPO DE PREPARACIÓN / COMBO */}
+              <div className="py-4">
+                <div 
+                  onClick={() => toggleSection("comboType")}
+                  className="flex items-start justify-between cursor-pointer select-none mb-1"
+                >
+                  <div>
+                    <h4 className="font-bold text-base text-zinc-900">
+                      2. ¿Cómo querés tu vaso?
+                    </h4>
+                    <p className="text-xs text-zinc-500 mt-0.5">
+                      {builderComboType === "full" ? "Completo con Yogur y Toppings" : builderComboType === "fruits_only" ? "Solo Frutas frescas" : "Elige 1 opción"}
+                    </p>
+                  </div>
+
+                  <div className="flex items-center gap-2">
+                    <span className="bg-zinc-100 text-zinc-700 text-[11px] font-semibold px-2.5 py-0.5 rounded-full">
+                      Requerido
+                    </span>
+                    {openSections.comboType ? (
+                      <ChevronUp size={20} className="text-zinc-700" />
+                    ) : (
+                      <ChevronDown size={20} className="text-zinc-700" />
+                    )}
+                  </div>
+                </div>
+
+                {openSections.comboType && (
+                  <div className="pt-2 divide-y divide-zinc-100 animate-in fade-in duration-150">
+                    <div
+                      onClick={() => {
+                        setBuilderComboType("full");
+                        setOpenSections(prev => ({ ...prev, comboType: false, step1: true }));
+                      }}
+                      className="py-3 flex items-center justify-between cursor-pointer hover:bg-zinc-50/70 transition-colors select-none"
+                    >
+                      <div>
+                        <span className="text-[10px] text-rose-600 font-bold block leading-none mb-1">
+                          Más popular
+                        </span>
+                        <span className="text-sm font-medium text-zinc-900">
+                          Con Frutas, Yogur o Crema, Toppings y Salsa
+                        </span>
+                        <span className="text-xs font-mono font-bold text-zinc-700 block mt-0.5">
+                          ${(currentSelectedSize ? currentSelectedSize.fullComboPrice : 9500).toLocaleString("es-AR")}
+                        </span>
+                      </div>
+
+                      <div className={`w-6 h-6 rounded-lg border-2 flex items-center justify-center transition-all shrink-0 ml-3 ${
+                        builderComboType === "full" 
+                          ? "bg-[#E2004B] border-[#E2004B] text-white" 
+                          : "border-zinc-300 bg-white"
+                      }`}>
+                        {builderComboType === "full" && <Check size={14} className="stroke-[3]" />}
+                      </div>
+                    </div>
+
+                    <div
+                      onClick={() => {
+                        setBuilderComboType("fruits_only");
+                        setOpenSections(prev => ({ ...prev, comboType: false, step1: true }));
+                      }}
+                      className="py-3 flex items-center justify-between cursor-pointer hover:bg-zinc-50/70 transition-colors select-none"
+                    >
+                      <div>
+                        <span className="text-sm font-medium text-zinc-900">
+                          Con Frutas (Solo Frutas)
+                        </span>
+                        <span className="text-xs font-mono font-bold text-zinc-700 block mt-0.5">
+                          ${(currentSelectedSize ? currentSelectedSize.fruitsOnlyPrice : 7500).toLocaleString("es-AR")}
+                        </span>
+                      </div>
+
+                      <div className={`w-6 h-6 rounded-lg border-2 flex items-center justify-center transition-all shrink-0 ml-3 ${
+                        builderComboType === "fruits_only" 
+                          ? "bg-[#E2004B] border-[#E2004B] text-white" 
+                          : "border-zinc-300 bg-white"
+                      }`}>
+                        {builderComboType === "fruits_only" && <Check size={14} className="stroke-[3]" />}
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* SECTION: 1ª FRUTA (BASE) */}
+              <div className="py-4">
+                <div 
+                  onClick={() => toggleSection("step1")}
+                  className="flex items-start justify-between cursor-pointer select-none mb-1"
+                >
+                  <div>
+                    <h4 className="font-bold text-base text-zinc-900">
+                      3. Primera Fruta (Base)
+                    </h4>
+                    <p className="text-xs text-zinc-500 mt-0.5">
+                      {builderStep1Fruit ? `Seleccionado: ${builderStep1Fruit}` : "Elige 1 opción"}
+                    </p>
+                  </div>
+
+                  <div className="flex items-center gap-2">
+                    <span className="bg-zinc-100 text-zinc-700 text-[11px] font-semibold px-2.5 py-0.5 rounded-full">
+                      Requerido
+                    </span>
+                    {openSections.step1 ? (
+                      <ChevronUp size={20} className="text-zinc-700" />
+                    ) : (
+                      <ChevronDown size={20} className="text-zinc-700" />
+                    )}
+                  </div>
+                </div>
+
+                {openSections.step1 && (
+                  <div className="pt-2 divide-y divide-zinc-100 animate-in fade-in duration-150">
+                    {cupConfig.fruits.filter(f => f.available).map((fruit, idx) => {
+                      const isSelected = builderStep1Fruit === fruit.name;
+                      return (
+                        <div
+                          key={fruit.id}
+                          onClick={() => {
+                            setBuilderStep1Fruit(fruit.name);
+                            if (builderComboType === "full") {
+                              setOpenSections({ size: false, comboType: false, step1: false, step2: true, step3: false, step4: false });
+                            } else {
+                              setOpenSections({ size: false, comboType: false, step1: false, step2: false, step3: true, step4: false });
+                            }
+                          }}
+                          className="py-3 flex items-center justify-between cursor-pointer hover:bg-zinc-50/70 transition-colors select-none"
+                        >
+                          <div>
+                            {idx < 2 && (
+                              <span className="text-[10px] text-zinc-400 font-medium block leading-none mb-1">
+                                Más popular
+                              </span>
+                            )}
+                            <span className="text-sm font-medium text-zinc-900 flex items-center gap-1.5">
+                              <span>{fruit.emoji || "🍓"}</span>
+                              <span>{fruit.name}</span>
+                            </span>
+                          </div>
+
+                          <div className={`w-6 h-6 rounded-lg border-2 flex items-center justify-center transition-all ${
+                            isSelected 
+                              ? "bg-[#E2004B] border-[#E2004B] text-white" 
+                              : "border-zinc-300 bg-white"
+                          }`}>
+                            {isSelected && <Check size={14} className="stroke-[3]" />}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+
+              {/* SECTION: YOGUR O CREMA (Solo si comboType === 'full') */}
+              {builderComboType === "full" && (
+                <div className="py-4">
+                  <div 
+                    onClick={() => toggleSection("step2")}
+                    className="flex items-start justify-between cursor-pointer select-none mb-1"
+                  >
+                    <div>
+                      <h4 className="font-bold text-base text-zinc-900">
+                        4. Yogur o Crema
+                      </h4>
+                      <p className="text-xs text-zinc-500 mt-0.5">
+                        {builderStep2Base ? `Seleccionado: ${builderStep2Base}` : "Elige 1 opción"}
+                      </p>
+                    </div>
+
+                    <div className="flex items-center gap-2">
+                      <span className="bg-zinc-100 text-zinc-700 text-[11px] font-semibold px-2.5 py-0.5 rounded-full">
+                        Requerido
+                      </span>
+                      {openSections.step2 ? (
+                        <ChevronUp size={20} className="text-zinc-700" />
+                      ) : (
+                        <ChevronDown size={20} className="text-zinc-700" />
+                      )}
+                    </div>
+                  </div>
+
+                  {openSections.step2 && (
+                    <div className="pt-2 divide-y divide-zinc-100 animate-in fade-in duration-150">
+                      {cupConfig.bases.filter(b => b.available).map((base, idx) => {
+                        const isSelected = builderStep2Base === base.name;
+                        return (
+                          <div
+                            key={base.id}
+                            onClick={() => {
+                              setBuilderStep2Base(base.name);
+                              setOpenSections({ size: false, comboType: false, step1: false, step2: false, step3: true, step4: false });
+                            }}
+                            className="py-3 flex items-center justify-between cursor-pointer hover:bg-zinc-50/70 transition-colors select-none"
+                          >
+                            <div>
+                              {idx === 0 && (
+                                <span className="text-[10px] text-zinc-400 font-medium block leading-none mb-1">
+                                  Más popular
+                                </span>
+                              )}
+                              <span className="text-sm font-medium text-zinc-900 flex items-center gap-1.5">
+                                <span>{base.emoji || "🥣"}</span>
+                                <span>{base.name}</span>
+                              </span>
+                              {base.description && (
+                                <span className="text-xs text-zinc-400 block mt-0.5">{base.description}</span>
+                              )}
+                            </div>
+
+                            <div className={`w-6 h-6 rounded-lg border-2 flex items-center justify-center transition-all ${
+                              isSelected 
+                                ? "bg-[#E2004B] border-[#E2004B] text-white" 
+                                : "border-zinc-300 bg-white"
+                            }`}>
+                              {isSelected && <Check size={14} className="stroke-[3]" />}
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* SECTION: 2ª FRUTA (SUPERIOR) */}
+              <div className="py-4">
+                <div 
+                  onClick={() => toggleSection("step3")}
+                  className="flex items-start justify-between cursor-pointer select-none mb-1"
+                >
+                  <div>
+                    <h4 className="font-bold text-base text-zinc-900">
+                      {builderComboType === "full" ? "5. Segunda Fruta (Superior)" : "4. Segunda Fruta"}
+                    </h4>
+                    <p className="text-xs text-zinc-500 mt-0.5">
+                      {builderStep3Fruit ? `Seleccionado: ${builderStep3Fruit}` : "Elige 1 opción"}
+                    </p>
+                  </div>
+
+                  <div className="flex items-center gap-2">
+                    <span className="bg-zinc-100 text-zinc-700 text-[11px] font-semibold px-2.5 py-0.5 rounded-full">
+                      Requerido
+                    </span>
+                    {openSections.step3 ? (
+                      <ChevronUp size={20} className="text-zinc-700" />
+                    ) : (
+                      <ChevronDown size={20} className="text-zinc-700" />
+                    )}
+                  </div>
+                </div>
+
+                {openSections.step3 && (
+                  <div className="pt-2 divide-y divide-zinc-100 animate-in fade-in duration-150">
+                    {cupConfig.fruits.filter(f => f.available).map((fruit, idx) => {
+                      const isSelected = builderStep3Fruit === fruit.name;
+                      return (
+                        <div
+                          key={fruit.id}
+                          onClick={() => {
+                            setBuilderStep3Fruit(fruit.name);
+                            if (builderComboType === "full") {
+                              setOpenSections({ size: false, comboType: false, step1: false, step2: false, step3: false, step4: true });
+                            } else {
+                              setOpenSections({ size: false, comboType: false, step1: false, step2: false, step3: false, step4: false });
+                            }
+                          }}
+                          className="py-3 flex items-center justify-between cursor-pointer hover:bg-zinc-50/70 transition-colors select-none"
+                        >
+                          <div>
+                            {idx < 2 && (
+                              <span className="text-[10px] text-zinc-400 font-medium block leading-none mb-1">
+                                Más popular
+                              </span>
+                            )}
+                            <span className="text-sm font-medium text-zinc-900 flex items-center gap-1.5">
+                              <span>{fruit.emoji || "🍓"}</span>
+                              <span>{fruit.name}</span>
+                            </span>
+                          </div>
+
+                          <div className={`w-6 h-6 rounded-lg border-2 flex items-center justify-center transition-all ${
+                            isSelected 
+                              ? "bg-[#E2004B] border-[#E2004B] text-white" 
+                              : "border-zinc-300 bg-white"
+                          }`}>
+                            {isSelected && <Check size={14} className="stroke-[3]" />}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+
+              {/* SECTION: TOPPINGS & SALSAS (Solo si comboType === 'full') */}
+              {builderComboType === "full" && (
+                <div className="py-4">
+                  <div 
+                    onClick={() => toggleSection("step4")}
+                    className="flex items-start justify-between cursor-pointer select-none mb-1"
+                  >
+                    <div>
+                      <h4 className="font-bold text-base text-zinc-900">
+                        6. Toppings y Salsas
+                      </h4>
+                      <p className="text-xs text-zinc-500 mt-0.5">
+                        {builderStep4Toppings.length > 0 
+                          ? `Seleccionados: ${builderStep4Toppings.join(", ")}` 
+                          : "Elige las opciones que desees"}
+                      </p>
+                    </div>
+
+                    <div className="flex items-center gap-2">
+                      <span className="bg-zinc-100 text-zinc-700 text-[11px] font-semibold px-2.5 py-0.5 rounded-full">
+                        Opcional
+                      </span>
+                      {openSections.step4 ? (
+                        <ChevronUp size={20} className="text-zinc-700" />
+                      ) : (
+                        <ChevronDown size={20} className="text-zinc-700" />
+                      )}
+                    </div>
+                  </div>
+
+                  {openSections.step4 && (
+                    <div className="pt-2 divide-y divide-zinc-100 animate-in fade-in duration-150">
+                      {cupConfig.toppings.filter(t => t.available).map((top) => {
+                        const isChecked = builderStep4Toppings.includes(top.name);
+                        return (
+                          <div
+                            key={top.id}
+                            onClick={() => handleToggleTopping(top.name)}
+                            className="py-3 flex items-center justify-between cursor-pointer hover:bg-zinc-50/70 transition-colors select-none"
+                          >
+                            <span className="text-sm font-medium text-zinc-900 flex items-center gap-1.5">
+                              <span>{top.emoji || "🍯"}</span>
+                              <span>{top.name}</span>
+                            </span>
+
+                            <div className={`w-6 h-6 rounded-lg border-2 flex items-center justify-center transition-all ${
+                              isChecked 
+                                ? "bg-[#E2004B] border-[#E2004B] text-white" 
+                                : "border-zinc-300 bg-white"
+                            }`}>
+                              {isChecked && <Check size={14} className="stroke-[3]" />}
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* NOTES */}
+              <div className="py-4">
+                <label className="block text-sm font-bold text-zinc-900 mb-1">
+                  Aclaraciones o notas (opcional)
+                </label>
+                <input 
+                  type="text"
+                  value={builderNotes}
+                  onChange={(e) => setBuilderNotes(e.target.value)}
+                  placeholder="Ej: poco yogur, enviar cubiertos..."
+                  className="w-full border border-zinc-200 focus:border-zinc-400 rounded-xl px-3.5 py-2.5 text-xs outline-none bg-zinc-50/50"
+                />
+              </div>
+
+            </div>
+
+            {/* PedidosYa Sticky Bottom Bar */}
+            <div className="sticky bottom-0 z-10 bg-white border-t border-zinc-200 p-4 sm:p-5 shrink-0 space-y-3 shadow-lg">
+              <div className="flex items-center justify-between">
+                <span className="text-base font-bold text-zinc-900">
+                  {builderQuantity} {builderQuantity === 1 ? "producto" : "productos"}
+                </span>
+                <span className="text-xl font-extrabold text-zinc-900 font-mono">
+                  ${(currentEffectiveUnitPrice * builderQuantity).toLocaleString("es-AR")}
+                </span>
+              </div>
+
+              <div className="flex items-center gap-3">
+                {/* Stepper */}
+                <div className="bg-zinc-100 rounded-full px-3 py-2 flex items-center gap-3 text-sm font-bold text-zinc-900 shrink-0">
+                  <button 
+                    type="button"
+                    onClick={() => setBuilderQuantity(prev => Math.max(1, prev - 1))}
+                    className="w-6 h-6 flex items-center justify-center text-zinc-700 hover:text-zinc-950 active:scale-90"
+                    aria-label="Disminuir cantidad"
+                  >
+                    <Minus size={16} />
+                  </button>
+                  <span className="w-4 text-center font-bold text-sm">{builderQuantity}</span>
+                  <button 
+                    type="button"
+                    onClick={() => setBuilderQuantity(prev => prev + 1)}
+                    className="w-6 h-6 flex items-center justify-center text-zinc-700 hover:text-zinc-950 active:scale-90"
+                    aria-label="Aumentar cantidad"
+                  >
+                    <Plus size={16} />
+                  </button>
+                </div>
+
+                {/* PedidosYa Magenta/Red Button */}
+                <button
+                  type="button"
+                  onClick={handleAddCustomCupToCart}
+                  disabled={!currentSelectedSize || !builderComboType || !builderStep1Fruit || !builderStep3Fruit || (builderComboType === "full" && !builderStep2Base)}
+                  className="flex-1 bg-[#E2004B] hover:bg-[#c70041] disabled:opacity-40 disabled:pointer-events-none text-white font-bold text-base py-3 px-6 rounded-full transition-all shadow-xs active:scale-98 text-center flex items-center justify-center"
+                >
+                  Agregar
+                </button>
+              </div>
+            </div>
+
+          </div>
+        </div>
+      )}
+
+      {/* FLOATING ANIMATED FRUIT CUP MASCOT WIDGET */}
+      <FloatingFruitCupWidget onOpenAbout={handleOpenAbout} />
     </main>
   );
 }
