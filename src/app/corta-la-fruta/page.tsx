@@ -396,6 +396,142 @@ function GooglePlacesWidget({
   );
 }
 
+interface PromoBanner {
+  id: string;
+  title: string;
+  imageUrl: string;
+  alt: string;
+}
+
+const HERO_PROMO_BANNERS: PromoBanner[] = [
+  {
+    id: "banner-1",
+    title: "10% de descuento en efectivo",
+    imageUrl: "https://i.postimg.cc/Z595r7XC/image.png",
+    alt: "10% de descuento en efectivo en Corta la Fruta",
+  },
+  {
+    id: "banner-2",
+    title: "Envío gratis en productos seleccionados",
+    imageUrl: "https://i.postimg.cc/G2mNyNSj/image.png",
+    alt: "Envío gratis en productos seleccionados",
+  }
+];
+
+function HeroPromoBannerCarousel() {
+  const [currentSlide, setCurrentSlide] = useState<number>(0);
+  const [isHovered, setIsHovered] = useState<boolean>(false);
+  const [touchStartX, setTouchStartX] = useState<number | null>(null);
+  const [touchEndX, setTouchEndX] = useState<number | null>(null);
+
+  const totalBanners = HERO_PROMO_BANNERS.length;
+
+  const nextSlide = () => {
+    setCurrentSlide((prev) => (prev + 1) % totalBanners);
+  };
+
+  const prevSlide = () => {
+    setCurrentSlide((prev) => (prev - 1 + totalBanners) % totalBanners);
+  };
+
+  // Auto-play carousel every 5s with pause on hover
+  useEffect(() => {
+    if (isHovered || totalBanners <= 1) return;
+    const interval = setInterval(() => {
+      nextSlide();
+    }, 5000);
+    return () => clearInterval(interval);
+  }, [isHovered, totalBanners]);
+
+  // Touch swipe support for mobile
+  const handleTouchStart = (e: React.TouchEvent) => {
+    setTouchStartX(e.targetTouches[0].clientX);
+  };
+
+  const handleTouchMove = (e: React.TouchEvent) => {
+    setTouchEndX(e.targetTouches[0].clientX);
+  };
+
+  const handleTouchEnd = () => {
+    if (!touchStartX || !touchEndX) return;
+    const distance = touchStartX - touchEndX;
+    if (distance > 45) {
+      nextSlide();
+    } else if (distance < -45) {
+      prevSlide();
+    }
+    setTouchStartX(null);
+    setTouchEndX(null);
+  };
+
+  return (
+    <section className="w-full bg-[#FFFDF9] pt-3 sm:pt-5 pb-2 sm:pb-3 px-3 sm:px-6">
+      <div 
+        className="max-w-6xl mx-auto relative rounded-2xl sm:rounded-3xl overflow-hidden shadow-md border border-zinc-200/80 bg-zinc-900 group select-none"
+        onMouseEnter={() => setIsHovered(true)}
+        onMouseLeave={() => setIsHovered(false)}
+        onTouchStart={handleTouchStart}
+        onTouchMove={handleTouchMove}
+        onTouchEnd={handleTouchEnd}
+      >
+        {/* Banner Images Track */}
+        <div 
+          className="flex transition-transform duration-500 ease-in-out w-full"
+          style={{ transform: `translateX(-${currentSlide * 100}%)` }}
+        >
+          {HERO_PROMO_BANNERS.map((banner, index) => (
+            <div 
+              key={banner.id} 
+              className="w-full shrink-0 relative aspect-[1024/286] bg-zinc-900 overflow-hidden"
+            >
+              <img 
+                src={banner.imageUrl} 
+                alt={banner.alt}
+                className="w-full h-full object-cover"
+                loading={index === 0 ? "eager" : "lazy"}
+              />
+            </div>
+          ))}
+        </div>
+
+        {/* Bottom Left Navigation Arrows */}
+        <div className="absolute bottom-2.5 sm:bottom-4 left-3 sm:left-5 flex items-center gap-1.5 sm:gap-2 z-20">
+          <button
+            onClick={prevSlide}
+            aria-label="Banner anterior"
+            className="w-6 h-6 sm:w-8 sm:h-8 rounded-full bg-black/40 hover:bg-black/70 text-white flex items-center justify-center backdrop-blur-xs border border-white/40 transition-all shadow-md active:scale-90"
+          >
+            <ChevronLeft size={16} className="sm:size-[18px] stroke-[2.5]" />
+          </button>
+          <button
+            onClick={nextSlide}
+            aria-label="Siguiente banner"
+            className="w-6 h-6 sm:w-8 sm:h-8 rounded-full bg-black/40 hover:bg-black/70 text-white flex items-center justify-center backdrop-blur-xs border border-white/40 transition-all shadow-md active:scale-90"
+          >
+            <ChevronRight size={16} className="sm:size-[18px] stroke-[2.5]" />
+          </button>
+        </div>
+
+        {/* Bottom Center Indicator Pills */}
+        <div className="absolute bottom-2.5 sm:bottom-4 left-1/2 -translate-x-1/2 flex items-center gap-1.5 z-20 bg-black/30 backdrop-blur-xs px-2.5 py-1 rounded-full border border-white/10">
+          {HERO_PROMO_BANNERS.map((_, idx) => (
+            <button
+              key={idx}
+              onClick={() => setCurrentSlide(idx)}
+              aria-label={`Ir al banner ${idx + 1}`}
+              className={`h-1.5 sm:h-2 rounded-full transition-all duration-300 ${
+                idx === currentSlide 
+                  ? "w-5 sm:w-7 bg-rose-600 shadow-xs" 
+                  : "w-1.5 sm:w-2 bg-white/70 hover:bg-white"
+              }`}
+            />
+          ))}
+        </div>
+      </div>
+    </section>
+  );
+}
+
 export default function CortaLaFrutaPublicPage() {
   const [categories, setCategories] = useState<Category[]>([]);
   const [isLoadingMenu, setIsLoadingMenu] = useState<boolean>(true);
@@ -777,43 +913,8 @@ export default function CortaLaFrutaPublicPage() {
         </div>
       </header>
 
-      {/* HERO SECTION */}
-      <section className="bg-gradient-to-b from-amber-50/50 via-rose-50/30 to-[#FFFDF9] border-b border-zinc-100 py-12 md:py-16 px-4 md:px-6">
-        <div className="max-w-4xl mx-auto text-center">
-          
-          <div className="inline-flex items-center gap-2 px-3.5 py-1.5 bg-white text-rose-600 border border-rose-200/80 rounded-full text-xs font-bold shadow-2xs mb-5">
-            <Sparkles size={15} className="text-amber-500 fill-amber-400" />
-            <span>Fruta fresca cortada y lista al instante</span>
-          </div>
-
-          <h2 className="text-3xl md:text-5xl font-extrabold text-zinc-900 tracking-tight leading-tight mb-4">
-            Lo fresco, lo rico y lo simple, <br className="hidden md:block" />
-            <span className="text-transparent bg-clip-text bg-gradient-to-r from-rose-500 via-amber-500 to-emerald-600">
-              en un solo lugar.
-            </span>
-          </h2>
-
-          <p className="text-base md:text-lg text-zinc-600 max-w-2xl mx-auto mb-8 font-medium leading-relaxed">
-            Vasos mixtos, ensaladas 100% naturales, yogur con granola artesanal y servicio de frutas para eventos.
-          </p>
-
-          {/* Fruit Accents Pills */}
-          <div className="flex flex-wrap items-center justify-center gap-3 text-xs font-semibold text-zinc-700">
-            <div className="flex items-center gap-2 px-3.5 py-1.5 bg-white rounded-xl border border-zinc-200 shadow-2xs">
-              <span className="w-2.5 h-2.5 rounded-full bg-rose-500" />
-              <span>Frutillas & Frutos Rojos</span>
-            </div>
-            <div className="flex items-center gap-2 px-3.5 py-1.5 bg-white rounded-xl border border-zinc-200 shadow-2xs">
-              <span className="w-2.5 h-2.5 rounded-full bg-amber-400" />
-              <span>Banana & Mango Dulce</span>
-            </div>
-            <div className="flex items-center gap-2 px-3.5 py-1.5 bg-white rounded-xl border border-zinc-200 shadow-2xs">
-              <span className="w-2.5 h-2.5 rounded-full bg-emerald-500" />
-              <span>Kiwi & Mix Cítrico</span>
-            </div>
-          </div>
-        </div>
-      </section>
+      {/* HERO PROMOTIONAL BANNER CAROUSEL */}
+      <HeroPromoBannerCarousel />
 
       {/* STICKY SEARCH & CATEGORY FILTER BAR */}
       <nav className="sticky top-16 sm:top-20 z-30 bg-white/95 backdrop-blur-md border-b border-zinc-200/80 py-2.5 sm:py-3.5 px-3 sm:px-6 shadow-2xs space-y-2 sm:space-y-3">
