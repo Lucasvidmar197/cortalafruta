@@ -4,8 +4,10 @@ import React, { useState, useEffect, useRef } from "react";
 import { supabase } from "@/lib/supabase";
 import { 
   Star, MapPin, Clock, Phone, AtSign, ShoppingBag, Plus, Minus, Trash2, 
-  X, Check, Box, ArrowRight, Sparkles, ChevronRight, ChevronLeft, ChevronDown, ChevronUp, Heart, CheckCircle2, Loader2, ExternalLink, Package
+  X, Check, Box, ArrowRight, Sparkles, ChevronRight, ChevronLeft, ChevronDown, ChevronUp, Heart, CheckCircle2, Loader2, ExternalLink, Package,
+  Ticket, Tag, AlertCircle
 } from "lucide-react";
+import { type Coupon } from "@/app/api/coupons/route";
 
 // Official WhatsApp Logo Icon
 const WhatsAppIcon = ({ size = 18, className = "" }: { size?: number; className?: string }) => (
@@ -1005,6 +1007,25 @@ export default function CortaLaFrutaPublicPage() {
   const [modalNote, setModalNote] = useState<string>("");
   const [toastMessage, setToastMessage] = useState<string | null>(null);
 
+  // Discount Coupons States
+  const [coupons, setCoupons] = useState<Coupon[]>([]);
+  const [couponInput, setCouponInput] = useState<string>("");
+  const [appliedCoupon, setAppliedCoupon] = useState<Coupon | null>(null);
+  const [couponError, setCouponError] = useState<string | null>(null);
+  const [couponSuccessMessage, setCouponSuccessMessage] = useState<string | null>(null);
+
+  // Load active coupons from API
+  useEffect(() => {
+    fetch("/api/coupons")
+      .then((res) => res.json())
+      .then((data) => {
+        if (Array.isArray(data)) {
+          setCoupons(data);
+        }
+      })
+      .catch((err) => console.error("Error al cargar cupones:", err));
+  }, []);
+
   // Restore saved order notes from localStorage
   useEffect(() => {
     try {
@@ -1142,7 +1163,92 @@ export default function CortaLaFrutaPublicPage() {
   };
 
   const totalCartCount = cart.reduce((sum, item) => sum + item.quantity, 0);
-  const totalCartPrice = cart.reduce((sum, item) => sum + (getProductEffectivePrice(item.product) * item.quantity), 0);
+  const subtotalPrice = cart.reduce((sum, item) => sum + (getProductEffectivePrice(item.product) * item.quantity), 0);
+
+  // Calculate discount from applied coupon
+  const discountAmount = appliedCoupon
+    ? appliedCoupon.discountType === "percentage"
+      ? Math.round((subtotalPrice * appliedCoupon.discountValue) / 100)
+      : Math.min(appliedCoupon.discountValue, subtotalPrice)
+    : 0;
+
+  const finalCartPrice = Math.max(0, subtotalPrice - discountAmount);
+  const totalCartPrice = finalCartPrice;
+
+  // Coupon application handler with full specific validations
+  const handleApplyCoupon = () => {
+    const cleanCode = couponInput.trim().toUpperCase();
+    if (!cleanCode) {
+      setCouponError("Por favor ingresá un código de cupón.");
+      setCouponSuccessMessage(null);
+      return;
+    }
+
+    const found = coupons.find((c) => c.code.trim().toUpperCase() === cleanCode);
+    if (!found) {
+      setCouponError("El código de cupón ingresado no existe.");
+      setCouponSuccessMessage(null);
+      return;
+    }
+
+    if (!found.isActive) {
+      setCouponError("Este cupón está temporalmente inactivo.");
+      setCouponSuccessMessage(null);
+      return;
+    }
+
+    if (found.expirationDate) {
+      const exp = new Date(found.expirationDate + "T23:59:59");
+      if (new Date() > exp) {
+        setCouponError(`Este cupón venció el ${found.expirationDate}.`);
+        setCouponSuccessMessage(null);
+        return;
+      }
+    }
+
+    if (found.totalUsageLimit && (found.currentUses || 0) >= found.totalUsageLimit) {
+      setCouponError("Este cupón ha alcanzado su límite de usos disponibles (agotado).");
+      setCouponSuccessMessage(null);
+      return;
+    }
+
+    if (found.minOrderAmount && subtotalPrice < found.minOrderAmount) {
+      setCouponError(
+        `Este cupón requiere una compra mínima de $${found.minOrderAmount.toLocaleString("es-AR")} (tu subtotal actual es $${subtotalPrice.toLocaleString("es-AR")}).`
+      );
+      setCouponSuccessMessage(null);
+      return;
+    }
+
+    // Validation passed
+    setAppliedCoupon(found);
+    setCouponError(null);
+    setCouponSuccessMessage(
+      `¡Cupón ${found.code} aplicado! ${
+        found.discountType === "percentage"
+          ? `${found.discountValue}% OFF`
+          : `$${found.discountValue.toLocaleString("es-AR")} OFF`
+      }`
+    );
+  };
+
+  const handleRemoveCoupon = () => {
+    setAppliedCoupon(null);
+    setCouponError(null);
+    setCouponSuccessMessage(null);
+    setCouponInput("");
+  };
+
+  // Re-verify coupon minimum purchase if cart subtotal changes
+  useEffect(() => {
+    if (appliedCoupon && appliedCoupon.minOrderAmount && subtotalPrice < appliedCoupon.minOrderAmount) {
+      setCouponError(
+        `El subtotal ($${subtotalPrice.toLocaleString("es-AR")}) es menor a la compra mínima del cupón ($${appliedCoupon.minOrderAmount.toLocaleString("es-AR")}).`
+      );
+      setAppliedCoupon(null);
+      setCouponSuccessMessage(null);
+    }
+  }, [subtotalPrice, appliedCoupon]);
 
   // Generate WhatsApp Order Link (Direct API & Bulletproof formatting)
   const handleWhatsAppCheckout = () => {
@@ -1173,7 +1279,20 @@ export default function CortaLaFrutaPublicPage() {
       }
     });
 
-    message += `\n💰 *Total del pedido: $${totalCartPrice.toLocaleString("es-AR")}*`;
+    if (appliedCoupon && discountAmount > 0) {
+      message += `\n💵 *Subtotal: $${subtotalPrice.toLocaleString("es-AR")}*`;
+      message += `\n🎟️ *Cupón aplicado (${appliedCoupon.code}): -$${discountAmount.toLocaleString("es-AR")}*`;
+      message += `\n💰 *Total final a pagar: $${finalCartPrice.toLocaleString("es-AR")}*`;
+
+      // Increment coupon usage count atomically in Supabase
+      fetch("/api/coupons", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ code: appliedCoupon.code })
+      }).catch((err) => console.error("Error al registrar uso de cupón:", err));
+    } else {
+      message += `\n💰 *Total del pedido: $${subtotalPrice.toLocaleString("es-AR")}*`;
+    }
 
     const cleanNotes = orderNotes.trim();
     if (cleanNotes) {
@@ -2308,6 +2427,83 @@ export default function CortaLaFrutaPublicPage() {
                     );
                   })}
 
+                  {/* COUPON INPUT SECTION */}
+                  <div className="pt-4 border-t border-zinc-100 space-y-2">
+                    <label className="block text-xs font-bold text-zinc-800 flex items-center gap-1.5">
+                      <Ticket size={14} className="text-amber-500" />
+                      <span>Cupón de descuento:</span>
+                    </label>
+
+                    {appliedCoupon ? (
+                      <div className="bg-emerald-50 border border-emerald-200 rounded-xl p-3 flex items-center justify-between gap-2 animate-in fade-in">
+                        <div className="flex items-center gap-2 min-w-0">
+                          <div className="w-8 h-8 rounded-lg bg-emerald-100 text-emerald-700 flex items-center justify-center shrink-0">
+                            <CheckCircle2 size={16} />
+                          </div>
+                          <div className="min-w-0">
+                            <div className="flex items-center gap-1.5 flex-wrap">
+                              <span className="font-mono font-black text-xs text-emerald-900 bg-white px-2 py-0.5 rounded border border-emerald-200">
+                                {appliedCoupon.code}
+                              </span>
+                              <span className="text-[11px] font-extrabold text-emerald-700">
+                                {appliedCoupon.discountType === "percentage"
+                                  ? `${appliedCoupon.discountValue}% OFF`
+                                  : `$${appliedCoupon.discountValue.toLocaleString("es-AR")} OFF`}
+                              </span>
+                            </div>
+                            <p className="text-[11px] text-emerald-600 font-medium truncate mt-0.5">
+                              Ahorrás ${discountAmount.toLocaleString("es-AR")} en tu pedido
+                            </p>
+                          </div>
+                        </div>
+
+                        <button
+                          onClick={handleRemoveCoupon}
+                          className="p-1.5 text-zinc-400 hover:text-rose-600 rounded-lg hover:bg-white transition-colors shrink-0 cursor-pointer"
+                          title="Quitar cupón"
+                        >
+                          <X size={16} />
+                        </button>
+                      </div>
+                    ) : (
+                      <div className="space-y-1.5">
+                        <div className="flex items-center gap-2">
+                          <div className="relative flex-1">
+                            <input
+                              type="text"
+                              value={couponInput}
+                              onChange={(e) => {
+                                setCouponInput(e.target.value.toUpperCase());
+                                setCouponError(null);
+                              }}
+                              placeholder="Ingresá tu código (ej: BIENVENIDA10)"
+                              className="w-full border border-zinc-200 focus:border-amber-500 rounded-xl pl-3 pr-3 py-2.5 text-xs font-mono uppercase font-bold outline-none bg-zinc-50/50 focus:bg-white transition-colors"
+                              onKeyDown={(e) => {
+                                if (e.key === "Enter") {
+                                  e.preventDefault();
+                                  handleApplyCoupon();
+                                }
+                              }}
+                            />
+                          </div>
+                          <button
+                            onClick={handleApplyCoupon}
+                            className="bg-amber-500 hover:bg-amber-600 text-white font-extrabold text-xs px-4 py-2.5 rounded-xl transition-colors shadow-xs shrink-0 cursor-pointer"
+                          >
+                            Aplicar
+                          </button>
+                        </div>
+
+                        {couponError && (
+                          <div className="flex items-start gap-1.5 text-[11px] text-rose-600 font-medium bg-rose-50 border border-rose-200/80 px-2.5 py-1.5 rounded-lg animate-in fade-in">
+                            <AlertCircle size={14} className="shrink-0 mt-0.5" />
+                            <span>{couponError}</span>
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </div>
+
                   {/* Order Notes */}
                   <div className="pt-4 border-t border-zinc-100 space-y-2">
                     <div className="flex items-center justify-between">
@@ -2338,11 +2534,29 @@ export default function CortaLaFrutaPublicPage() {
             {/* Footer with WhatsApp Logo Checkout */}
             {cart.length > 0 && (
               <div className="p-5 border-t border-zinc-200 bg-zinc-50 space-y-4">
-                <div className="flex items-center justify-between">
-                  <span className="text-sm font-semibold text-zinc-600">Total estimado:</span>
-                  <span className="text-xl font-extrabold text-zinc-900 font-mono">
-                    ${totalCartPrice.toLocaleString("es-AR")}
-                  </span>
+                <div className="space-y-1.5">
+                  {appliedCoupon && discountAmount > 0 && (
+                    <>
+                      <div className="flex items-center justify-between text-xs text-zinc-500 font-medium">
+                        <span>Subtotal:</span>
+                        <span className="font-mono">${subtotalPrice.toLocaleString("es-AR")}</span>
+                      </div>
+                      <div className="flex items-center justify-between text-xs text-emerald-600 font-bold">
+                        <span className="flex items-center gap-1">
+                          <Ticket size={12} />
+                          <span>Cupón ({appliedCoupon.code}):</span>
+                        </span>
+                        <span className="font-mono">-${discountAmount.toLocaleString("es-AR")}</span>
+                      </div>
+                    </>
+                  )}
+
+                  <div className="flex items-center justify-between pt-1">
+                    <span className="text-sm font-semibold text-zinc-600">Total a pagar:</span>
+                    <span className="text-xl font-extrabold text-zinc-900 font-mono">
+                      ${totalCartPrice.toLocaleString("es-AR")}
+                    </span>
+                  </div>
                 </div>
 
                 {/* Accepted Payment Methods */}

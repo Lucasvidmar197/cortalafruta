@@ -6,8 +6,10 @@ import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase";
 import { 
   Plus, Trash2, Edit2, Save, X, ArrowLeft, Package, Layers, Box, 
-  Image as ImageIcon, Upload, Loader2, LogOut, Check, Sparkles, ExternalLink, Lock, Star, Sliders 
+  Image as ImageIcon, Upload, Loader2, LogOut, Check, Sparkles, ExternalLink, Lock, Star, Sliders,
+  Ticket, Percent, DollarSign, Calendar, Hash, Tag, AlertCircle, Copy, CheckCircle2
 } from "lucide-react";
+import { type Coupon, DEFAULT_COUPONS } from "@/app/api/coupons/route";
 import { WebIO } from "@gltf-transform/core";
 import { KHRMaterialsUnlit } from "@gltf-transform/extensions";
 
@@ -170,8 +172,33 @@ export default function CortaLaFrutaAdminPage() {
   const [isLoadingMenu, setIsLoadingMenu] = useState<boolean>(false);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
 
-  // Tab state: 'menu' (standard catalog) or 'cup-builder' (Armá tu Vaso config)
-  const [activeAdminTab, setActiveAdminTab] = useState<"menu" | "cup-builder">("menu");
+  // Tab state: 'menu' (standard catalog), 'cup-builder' (Armá tu Vaso config), or 'coupons' (discount coupons)
+  const [activeAdminTab, setActiveAdminTab] = useState<"menu" | "cup-builder" | "coupons">("menu");
+
+  // Coupons state
+  const [coupons, setCoupons] = useState<Coupon[]>(DEFAULT_COUPONS);
+  const [isSavingCoupons, setIsSavingCoupons] = useState<boolean>(false);
+  const [isCouponModalOpen, setIsCouponModalOpen] = useState<boolean>(false);
+  const [editingCouponId, setEditingCouponId] = useState<string | null>(null);
+  const [couponForm, setCouponForm] = useState<{
+    code: string;
+    discountType: "percentage" | "fixed";
+    discountValue: number | "";
+    minOrderAmount: number | "";
+    expirationDate: string;
+    totalUsageLimit: number | "";
+    isActive: boolean;
+    description: string;
+  }>({
+    code: "",
+    discountType: "percentage",
+    discountValue: 10,
+    minOrderAmount: "",
+    expirationDate: "",
+    totalUsageLimit: "",
+    isActive: true,
+    description: ""
+  });
 
   // Cup Builder configuration state
   const [cupConfig, setCupConfig] = useState<CupBuilderConfig>(DEFAULT_CUP_BUILDER_CONFIG);
@@ -266,6 +293,19 @@ export default function CortaLaFrutaAdminPage() {
             });
           } catch (e) {
             console.error("Error parsing cup builder config:", e);
+          }
+        }
+
+        // Find coupons config
+        const couponsRow = data.find((i: any) => i.id === "coupons-config");
+        if (couponsRow && couponsRow.description) {
+          try {
+            const parsed = JSON.parse(couponsRow.description);
+            if (Array.isArray(parsed)) {
+              setCoupons(parsed);
+            }
+          } catch (e) {
+            console.error("Error parsing coupons config:", e);
           }
         }
 
@@ -396,6 +436,152 @@ export default function CortaLaFrutaAdminPage() {
     } finally {
       setIsSavingCupConfig(false);
     }
+  };
+
+  // --- COUPON HANDLERS ---
+  const handleSaveCoupons = async (updatedCoupons?: Coupon[]) => {
+    const listToSave = updatedCoupons || coupons;
+    setIsSavingCoupons(true);
+    try {
+      const payload = {
+        id: "coupons-config",
+        name: "Configuración de Cupones",
+        description: JSON.stringify(listToSave),
+        price: 0,
+        scale: 1,
+        glburl: null,
+        usdzurl: null,
+        category: "Configuracion",
+        image_urls: []
+      };
+
+      const { error } = await supabase.from("menu_items").upsert(payload);
+      if (error) throw error;
+
+      showToast("✨ ¡Cupones guardados y sincronizados con éxito!");
+    } catch (err: any) {
+      console.error("Error al guardar cupones:", err);
+      showToast("Error al guardar cupones: " + (err.message || "revisá la conexión"));
+    } finally {
+      setIsSavingCoupons(false);
+    }
+  };
+
+  const handleOpenCreateCoupon = () => {
+    setEditingCouponId(null);
+    setCouponForm({
+      code: "",
+      discountType: "percentage",
+      discountValue: 10,
+      minOrderAmount: "",
+      expirationDate: "",
+      totalUsageLimit: "",
+      isActive: true,
+      description: ""
+    });
+    setIsCouponModalOpen(true);
+  };
+
+  const handleOpenEditCoupon = (c: Coupon) => {
+    setEditingCouponId(c.id);
+    setCouponForm({
+      code: c.code,
+      discountType: c.discountType,
+      discountValue: c.discountValue,
+      minOrderAmount: c.minOrderAmount || "",
+      expirationDate: c.expirationDate || "",
+      totalUsageLimit: c.totalUsageLimit || "",
+      isActive: c.isActive,
+      description: c.description || ""
+    });
+    setIsCouponModalOpen(true);
+  };
+
+  const handleSaveCouponModal = async () => {
+    const cleanCode = couponForm.code.trim().toUpperCase();
+    if (!cleanCode) {
+      showToast("Por favor escribí un código para el cupón.");
+      return;
+    }
+
+    const val = Number(couponForm.discountValue);
+    if (!val || val <= 0) {
+      showToast("El valor del descuento debe ser mayor a 0.");
+      return;
+    }
+
+    if (couponForm.discountType === "percentage" && val > 100) {
+      showToast("El porcentaje de descuento no puede superar el 100%.");
+      return;
+    }
+
+    // Check duplicate code (excluding current editing coupon)
+    const exists = coupons.some(
+      (c) => c.code.trim().toUpperCase() === cleanCode && c.id !== editingCouponId
+    );
+    if (exists) {
+      showToast(`Ya existe un cupón con el código "${cleanCode}".`);
+      return;
+    }
+
+    let nextCoupons: Coupon[];
+    if (editingCouponId) {
+      nextCoupons = coupons.map((c) => {
+        if (c.id === editingCouponId) {
+          return {
+            ...c,
+            code: cleanCode,
+            discountType: couponForm.discountType,
+            discountValue: val,
+            minOrderAmount: couponForm.minOrderAmount ? Number(couponForm.minOrderAmount) : undefined,
+            expirationDate: couponForm.expirationDate ? couponForm.expirationDate : undefined,
+            totalUsageLimit: couponForm.totalUsageLimit ? Number(couponForm.totalUsageLimit) : undefined,
+            isActive: couponForm.isActive,
+            description: couponForm.description.trim() || undefined
+          };
+        }
+        return c;
+      });
+    } else {
+      const newCoupon: Coupon = {
+        id: `coupon-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
+        code: cleanCode,
+        discountType: couponForm.discountType,
+        discountValue: val,
+        minOrderAmount: couponForm.minOrderAmount ? Number(couponForm.minOrderAmount) : undefined,
+        expirationDate: couponForm.expirationDate ? couponForm.expirationDate : undefined,
+        totalUsageLimit: couponForm.totalUsageLimit ? Number(couponForm.totalUsageLimit) : undefined,
+        currentUses: 0,
+        isActive: couponForm.isActive,
+        description: couponForm.description.trim() || undefined,
+        createdAt: new Date().toISOString()
+      };
+      nextCoupons = [newCoupon, ...coupons];
+    }
+
+    setCoupons(nextCoupons);
+    setIsCouponModalOpen(false);
+    await handleSaveCoupons(nextCoupons);
+  };
+
+  const handleToggleCouponActive = async (id: string) => {
+    const nextCoupons = coupons.map((c) => {
+      if (c.id === id) {
+        return { ...c, isActive: !c.isActive };
+      }
+      return c;
+    });
+    setCoupons(nextCoupons);
+    await handleSaveCoupons(nextCoupons);
+  };
+
+  const handleDeleteCoupon = async (id: string, code: string) => {
+    if (!window.confirm(`¿Estás seguro de que querés eliminar el cupón "${code}"?`)) {
+      return;
+    }
+    const nextCoupons = coupons.filter((c) => c.id !== id);
+    setCoupons(nextCoupons);
+    await handleSaveCoupons(nextCoupons);
   };
 
   useEffect(() => {
@@ -940,6 +1126,23 @@ export default function CortaLaFrutaAdminPage() {
               Activo
             </span>
           </button>
+
+          <button
+            onClick={() => setActiveAdminTab("coupons")}
+            className={`px-4 py-2.5 rounded-xl text-xs font-bold transition-all flex items-center gap-2 ${
+              activeAdminTab === "coupons"
+                ? "bg-amber-500 text-white shadow-xs"
+                : "text-zinc-600 hover:text-zinc-900 hover:bg-white/50"
+            }`}
+          >
+            <Ticket size={16} />
+            <span>🎟️ Cupones de Descuento</span>
+            <span className={`text-[10px] font-mono px-2 py-0.5 rounded-full ${
+              activeAdminTab === "coupons" ? "bg-white/20 text-white" : "bg-amber-100 text-amber-800 font-bold"
+            }`}>
+              {coupons.filter(c => c.isActive).length} Activos
+            </span>
+          </button>
         </div>
 
         {/* CUP BUILDER CONFIGURATION VIEW */}
@@ -1395,6 +1598,422 @@ export default function CortaLaFrutaAdminPage() {
                 <span>Guardar Configuración</span>
               </button>
             </div>
+
+          </div>
+        ) : activeAdminTab === "coupons" ? (
+          /* DISCOUNT COUPONS MANAGEMENT VIEW */
+          <div className="space-y-8 animate-in fade-in duration-200">
+            {/* Header & Quick Action Card */}
+            <div className="bg-white rounded-3xl p-6 sm:p-8 border border-zinc-200 shadow-2xs space-y-6">
+              <div className="flex flex-wrap items-center justify-between gap-4 border-b border-zinc-100 pb-5">
+                <div className="flex items-center gap-3">
+                  <div className="w-12 h-12 rounded-2xl bg-amber-50 text-amber-600 flex items-center justify-center font-black text-xl shadow-xs">
+                    🎟️
+                  </div>
+                  <div>
+                    <h3 className="text-xl font-black text-zinc-900 flex items-center gap-2">
+                      <span>Cupones de Descuento</span>
+                      <span className="text-xs font-mono font-bold bg-amber-100 text-amber-800 px-2.5 py-0.5 rounded-full">
+                        {coupons.length} creados
+                      </span>
+                    </h3>
+                    <p className="text-xs text-zinc-500 font-medium mt-0.5">
+                      Creá y administrá códigos promocionales para que tus clientes los apliquen en el carrito.
+                    </p>
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-3">
+                  <button
+                    onClick={handleOpenCreateCoupon}
+                    className="bg-amber-500 hover:bg-amber-600 text-white font-extrabold text-xs px-4 py-2.5 rounded-xl transition-all shadow-xs flex items-center gap-2 cursor-pointer"
+                  >
+                    <Plus size={16} />
+                    <span>Nuevo Cupón</span>
+                  </button>
+
+                  <button
+                    onClick={() => handleSaveCoupons()}
+                    disabled={isSavingCoupons}
+                    className="bg-zinc-900 hover:bg-black text-white font-extrabold text-xs px-4 py-2.5 rounded-xl transition-all shadow-xs flex items-center gap-2 disabled:opacity-50 cursor-pointer"
+                  >
+                    {isSavingCoupons ? (
+                      <Loader2 size={16} className="animate-spin" />
+                    ) : (
+                      <Save size={16} />
+                    )}
+                    <span>Guardar Cambios</span>
+                  </button>
+                </div>
+              </div>
+
+              {/* Metrics Row */}
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                <div className="bg-zinc-50 rounded-2xl p-4 border border-zinc-200/80">
+                  <p className="text-[10px] uppercase tracking-wider font-extrabold text-zinc-500">Total Cupones</p>
+                  <p className="text-2xl font-black text-zinc-900 font-mono mt-1">{coupons.length}</p>
+                </div>
+                <div className="bg-emerald-50 rounded-2xl p-4 border border-emerald-200/80">
+                  <p className="text-[10px] uppercase tracking-wider font-extrabold text-emerald-700">Cupones Activos</p>
+                  <p className="text-2xl font-black text-emerald-700 font-mono mt-1">
+                    {coupons.filter(c => c.isActive).length}
+                  </p>
+                </div>
+                <div className="bg-amber-50 rounded-2xl p-4 border border-amber-200/80">
+                  <p className="text-[10px] uppercase tracking-wider font-extrabold text-amber-700">Usos Totales Canjeados</p>
+                  <p className="text-2xl font-black text-amber-700 font-mono mt-1">
+                    {coupons.reduce((sum, c) => sum + (c.currentUses || 0), 0)}
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            {/* Coupons List */}
+            {coupons.length === 0 ? (
+              <div className="bg-white rounded-3xl p-12 text-center border border-zinc-200 shadow-2xs space-y-4">
+                <div className="w-16 h-16 rounded-full bg-amber-50 text-amber-600 flex items-center justify-center mx-auto text-2xl">
+                  🎟️
+                </div>
+                <h4 className="text-base font-extrabold text-zinc-800">No hay cupones creados</h4>
+                <p className="text-xs text-zinc-500 max-w-sm mx-auto">
+                  Creá tu primer código de descuento (ej: BIENVENIDA10, PROMO2000) para incentivar las ventas en la tienda.
+                </p>
+                <button
+                  onClick={handleOpenCreateCoupon}
+                  className="bg-amber-500 hover:bg-amber-600 text-white font-extrabold text-xs px-5 py-2.5 rounded-xl transition-all shadow-xs inline-flex items-center gap-2 cursor-pointer"
+                >
+                  <Plus size={16} />
+                  <span>Crear Primer Cupón</span>
+                </button>
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {coupons.map((c) => {
+                  const isExpired = c.expirationDate && new Date(c.expirationDate + "T23:59:59") < new Date();
+                  const isLimitReached = c.totalUsageLimit && (c.currentUses || 0) >= c.totalUsageLimit;
+                  
+                  return (
+                    <div
+                      key={c.id}
+                      className={`bg-white rounded-2xl p-5 border transition-all shadow-2xs flex flex-col justify-between gap-4 ${
+                        !c.isActive 
+                          ? "border-zinc-200 opacity-75 bg-zinc-50/50" 
+                          : isExpired 
+                          ? "border-rose-200 bg-rose-50/30" 
+                          : isLimitReached
+                          ? "border-amber-200 bg-amber-50/30"
+                          : "border-zinc-200 hover:border-amber-300"
+                      }`}
+                    >
+                      {/* Top Row: Code Badge & Discount */}
+                      <div className="space-y-2.5">
+                        <div className="flex items-start justify-between gap-2">
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <span className="font-mono font-black text-sm px-3 py-1 bg-zinc-900 text-white rounded-lg tracking-wider shadow-2xs flex items-center gap-1.5">
+                              <Ticket size={13} className="text-amber-400" />
+                              {c.code}
+                            </span>
+                            <span className={`text-xs font-extrabold px-2.5 py-1 rounded-lg ${
+                              c.discountType === "percentage" 
+                                ? "bg-rose-100 text-rose-700" 
+                                : "bg-emerald-100 text-emerald-700"
+                            }`}>
+                              {c.discountType === "percentage" 
+                                ? `${c.discountValue}% OFF` 
+                                : `$${Number(c.discountValue).toLocaleString("es-AR")} OFF`}
+                            </span>
+                          </div>
+
+                          {/* Status Pill */}
+                          <div>
+                            {!c.isActive ? (
+                              <span className="text-[10px] font-extrabold px-2 py-0.5 rounded-full bg-zinc-200 text-zinc-600">
+                                Pausado
+                              </span>
+                            ) : isExpired ? (
+                              <span className="text-[10px] font-extrabold px-2 py-0.5 rounded-full bg-rose-100 text-rose-700 border border-rose-200">
+                                Vencido
+                              </span>
+                            ) : isLimitReached ? (
+                              <span className="text-[10px] font-extrabold px-2 py-0.5 rounded-full bg-amber-100 text-amber-800 border border-amber-200">
+                                Agotado
+                              </span>
+                            ) : (
+                              <span className="text-[10px] font-extrabold px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 border border-emerald-200 flex items-center gap-1">
+                                <span className="w-1.5 h-1.5 rounded-full bg-emerald-600 animate-pulse"></span>
+                                Activo
+                              </span>
+                            )}
+                          </div>
+                        </div>
+
+                        {c.description && (
+                          <p className="text-xs text-zinc-600 font-medium">
+                            {c.description}
+                          </p>
+                        )}
+
+                        {/* Rules & Details Pills */}
+                        <div className="flex flex-wrap gap-2 pt-1 text-[11px] text-zinc-600 font-medium">
+                          {c.minOrderAmount ? (
+                            <span className="bg-zinc-100 px-2 py-0.5 rounded-md flex items-center gap-1">
+                              <DollarSign size={11} className="text-zinc-500" />
+                              Mínimo: ${Number(c.minOrderAmount).toLocaleString("es-AR")}
+                            </span>
+                          ) : (
+                            <span className="bg-zinc-100 px-2 py-0.5 rounded-md text-zinc-400">
+                              Sin mínimo
+                            </span>
+                          )}
+
+                          {c.expirationDate ? (
+                            <span className={`px-2 py-0.5 rounded-md flex items-center gap-1 ${
+                              isExpired ? "bg-rose-100 text-rose-700 font-bold" : "bg-zinc-100"
+                            }`}>
+                              <Calendar size={11} className="text-zinc-500" />
+                              Vence: {c.expirationDate}
+                            </span>
+                          ) : (
+                            <span className="bg-zinc-100 px-2 py-0.5 rounded-md text-zinc-400">
+                              Sin vencimiento
+                            </span>
+                          )}
+
+                          <span className={`px-2 py-0.5 rounded-md flex items-center gap-1 ${
+                            isLimitReached ? "bg-amber-100 text-amber-800 font-bold" : "bg-zinc-100"
+                          }`}>
+                            <Hash size={11} className="text-zinc-500" />
+                            Usos: {c.currentUses || 0}{c.totalUsageLimit ? ` / ${c.totalUsageLimit}` : " (ilimitado)"}
+                          </span>
+                        </div>
+                      </div>
+
+                      {/* Bottom Row: Actions */}
+                      <div className="pt-3 border-t border-zinc-100 flex items-center justify-between gap-2">
+                        <button
+                          onClick={() => handleToggleCouponActive(c.id)}
+                          className={`text-xs font-bold px-3 py-1.5 rounded-xl transition-all flex items-center gap-1.5 cursor-pointer ${
+                            c.isActive 
+                              ? "bg-emerald-50 text-emerald-700 hover:bg-emerald-100 border border-emerald-200/80" 
+                              : "bg-zinc-100 text-zinc-600 hover:bg-zinc-200"
+                          }`}
+                        >
+                          <span className={`w-2 h-2 rounded-full ${c.isActive ? "bg-emerald-600" : "bg-zinc-400"}`}></span>
+                          <span>{c.isActive ? "Habilitado" : "Deshabilitado"}</span>
+                        </button>
+
+                        <div className="flex items-center gap-1.5">
+                          <button
+                            onClick={() => handleOpenEditCoupon(c)}
+                            className="p-1.5 text-zinc-500 hover:text-zinc-900 rounded-lg hover:bg-zinc-100 transition-colors cursor-pointer"
+                            title="Editar cupón"
+                          >
+                            <Edit2 size={15} />
+                          </button>
+                          <button
+                            onClick={() => handleDeleteCoupon(c.id, c.code)}
+                            className="p-1.5 text-zinc-400 hover:text-rose-600 rounded-lg hover:bg-rose-50 transition-colors cursor-pointer"
+                            title="Eliminar cupón"
+                          >
+                            <Trash2 size={15} />
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+
+            {/* MODAL CREAR / EDITAR CUPÓN */}
+            {isCouponModalOpen && (
+              <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-xs animate-in fade-in duration-200">
+                <div className="bg-white rounded-3xl p-6 sm:p-8 max-w-lg w-full border border-zinc-200 shadow-2xl space-y-6 animate-in zoom-in-95 duration-200 max-h-[90vh] overflow-y-auto">
+                  
+                  {/* Modal Header */}
+                  <div className="flex items-center justify-between border-b border-zinc-100 pb-4">
+                    <div className="flex items-center gap-2.5">
+                      <div className="w-10 h-10 rounded-xl bg-amber-50 text-amber-600 flex items-center justify-center">
+                        <Ticket size={20} />
+                      </div>
+                      <div>
+                        <h4 className="font-black text-lg text-zinc-900">
+                          {editingCouponId ? "Editar Cupón" : "Crear Nuevo Cupón"}
+                        </h4>
+                        <p className="text-xs text-zinc-500 font-medium">
+                          Configurá el código, porcentaje o monto y reglas de uso.
+                        </p>
+                      </div>
+                    </div>
+                    <button
+                      onClick={() => setIsCouponModalOpen(false)}
+                      className="p-2 text-zinc-400 hover:text-zinc-700 rounded-xl hover:bg-zinc-100 transition-colors"
+                    >
+                      <X size={18} />
+                    </button>
+                  </div>
+
+                  {/* Form Fields */}
+                  <div className="space-y-4 text-xs font-medium">
+                    {/* Código */}
+                    <div className="space-y-1.5">
+                      <label className="block text-zinc-700 font-extrabold uppercase text-[10px] tracking-wider">
+                        Código del Cupón *
+                      </label>
+                      <input
+                        type="text"
+                        value={couponForm.code}
+                        onChange={(e) => setCouponForm({ ...couponForm, code: e.target.value.toUpperCase() })}
+                        placeholder="Ej: FRUTA10, VERANO2026, BIENVENIDA"
+                        className="w-full border border-zinc-300 focus:border-amber-500 rounded-xl px-3.5 py-2.5 font-mono font-extrabold text-sm uppercase outline-none bg-zinc-50 focus:bg-white transition-colors"
+                        autoFocus
+                      />
+                      <p className="text-[10px] text-zinc-400">Se convertirá automáticamente a mayúsculas sin espacios.</p>
+                    </div>
+
+                    {/* Tipo y Valor de Descuento */}
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                      <div className="space-y-1.5">
+                        <label className="block text-zinc-700 font-extrabold uppercase text-[10px] tracking-wider">
+                          Tipo de Descuento *
+                        </label>
+                        <select
+                          value={couponForm.discountType}
+                          onChange={(e) => setCouponForm({ 
+                            ...couponForm, 
+                            discountType: e.target.value as "percentage" | "fixed" 
+                          })}
+                          className="w-full border border-zinc-300 focus:border-amber-500 rounded-xl px-3 py-2.5 font-bold outline-none bg-zinc-50 focus:bg-white"
+                        >
+                          <option value="percentage">Porcentaje (%)</option>
+                          <option value="fixed">Monto Fijo ($)</option>
+                        </select>
+                      </div>
+
+                      <div className="space-y-1.5">
+                        <label className="block text-zinc-700 font-extrabold uppercase text-[10px] tracking-wider">
+                          {couponForm.discountType === "percentage" ? "Porcentaje de Descuento (%) *" : "Monto a Descontar ($) *"}
+                        </label>
+                        <div className="relative">
+                          <input
+                            type="number"
+                            min="1"
+                            max={couponForm.discountType === "percentage" ? "100" : undefined}
+                            value={couponForm.discountValue}
+                            onChange={(e) => setCouponForm({ 
+                              ...couponForm, 
+                              discountValue: e.target.value === "" ? "" : Number(e.target.value) 
+                            })}
+                            placeholder={couponForm.discountType === "percentage" ? "15" : "2000"}
+                            className="w-full border border-zinc-300 focus:border-amber-500 rounded-xl px-3.5 py-2.5 font-bold outline-none bg-zinc-50 focus:bg-white"
+                          />
+                          <span className="absolute right-3.5 top-1/2 -translate-y-1/2 text-zinc-400 font-bold">
+                            {couponForm.discountType === "percentage" ? "%" : "$"}
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Compra mínima y Límite de usos */}
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                      <div className="space-y-1.5">
+                        <label className="block text-zinc-700 font-extrabold uppercase text-[10px] tracking-wider">
+                          Compra Mínima ($) (Opcional)
+                        </label>
+                        <input
+                          type="number"
+                          min="0"
+                          value={couponForm.minOrderAmount}
+                          onChange={(e) => setCouponForm({ 
+                            ...couponForm, 
+                            minOrderAmount: e.target.value === "" ? "" : Number(e.target.value) 
+                          })}
+                          placeholder="Ej: 8000 (0 = sin mínimo)"
+                          className="w-full border border-zinc-300 focus:border-amber-500 rounded-xl px-3 py-2.5 outline-none bg-zinc-50 focus:bg-white"
+                        />
+                      </div>
+
+                      <div className="space-y-1.5">
+                        <label className="block text-zinc-700 font-extrabold uppercase text-[10px] tracking-wider">
+                          Límite de Usos Totales (Opcional)
+                        </label>
+                        <input
+                          type="number"
+                          min="1"
+                          value={couponForm.totalUsageLimit}
+                          onChange={(e) => setCouponForm({ 
+                            ...couponForm, 
+                            totalUsageLimit: e.target.value === "" ? "" : Number(e.target.value) 
+                          })}
+                          placeholder="Ej: 50 pedidos (vacío = ilimitado)"
+                          className="w-full border border-zinc-300 focus:border-amber-500 rounded-xl px-3 py-2.5 outline-none bg-zinc-50 focus:bg-white"
+                        />
+                      </div>
+                    </div>
+
+                    {/* Fecha de Expiración */}
+                    <div className="space-y-1.5">
+                      <label className="block text-zinc-700 font-extrabold uppercase text-[10px] tracking-wider">
+                        Fecha de Vencimiento (Opcional)
+                      </label>
+                      <input
+                        type="date"
+                        value={couponForm.expirationDate}
+                        onChange={(e) => setCouponForm({ ...couponForm, expirationDate: e.target.value })}
+                        className="w-full border border-zinc-300 focus:border-amber-500 rounded-xl px-3 py-2.5 outline-none bg-zinc-50 focus:bg-white"
+                      />
+                      <p className="text-[10px] text-zinc-400">Si no definís fecha, el cupón no tendrá vencimiento.</p>
+                    </div>
+
+                    {/* Descripción o nota interna */}
+                    <div className="space-y-1.5">
+                      <label className="block text-zinc-700 font-extrabold uppercase text-[10px] tracking-wider">
+                        Descripción o Nota Interna (Opcional)
+                      </label>
+                      <input
+                        type="text"
+                        value={couponForm.description}
+                        onChange={(e) => setCouponForm({ ...couponForm, description: e.target.value })}
+                        placeholder="Ej: Descuento para historias de Instagram, amigos del local..."
+                        className="w-full border border-zinc-300 focus:border-amber-500 rounded-xl px-3 py-2.5 outline-none bg-zinc-50 focus:bg-white"
+                      />
+                    </div>
+
+                    {/* Switch Activo */}
+                    <div className="pt-2 flex items-center justify-between bg-zinc-50 p-3 rounded-xl border border-zinc-200">
+                      <div>
+                        <p className="font-extrabold text-zinc-800">Cupón Activo</p>
+                        <p className="text-[10px] text-zinc-500">Permite que los clientes puedan ingresarlo y canjearlo en el carrito.</p>
+                      </div>
+                      <input
+                        type="checkbox"
+                        checked={couponForm.isActive}
+                        onChange={(e) => setCouponForm({ ...couponForm, isActive: e.target.checked })}
+                        className="w-5 h-5 accent-amber-500 cursor-pointer rounded"
+                      />
+                    </div>
+                  </div>
+
+                  {/* Modal Actions */}
+                  <div className="flex items-center justify-end gap-3 pt-4 border-t border-zinc-100">
+                    <button
+                      onClick={() => setIsCouponModalOpen(false)}
+                      className="px-4 py-2 rounded-xl text-xs font-bold text-zinc-600 hover:bg-zinc-100 transition-colors cursor-pointer"
+                    >
+                      Cancelar
+                    </button>
+                    <button
+                      onClick={handleSaveCouponModal}
+                      className="bg-amber-500 hover:bg-amber-600 text-white px-5 py-2.5 rounded-xl text-xs font-extrabold transition-colors shadow-xs flex items-center gap-1.5 cursor-pointer"
+                    >
+                      <Check size={16} />
+                      <span>{editingCouponId ? "Guardar Cambios" : "Crear Cupón"}</span>
+                    </button>
+                  </div>
+
+                </div>
+              </div>
+            )}
 
           </div>
         ) : (
