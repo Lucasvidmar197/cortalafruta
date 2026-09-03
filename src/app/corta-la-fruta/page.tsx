@@ -138,27 +138,37 @@ interface CartItem {
   };
 }
 
-// Category visual metadata (subtitles & colors)
-const CATEGORY_META: Record<string, { subtitle: string; theme: "strawberry" | "kiwi" | "banana" }> = {
-  "Vasos de Fruta Cortada": {
-    subtitle: "Fruta fresca seleccionada y cortada al momento",
-    theme: "strawberry"
+// Category visual metadata (subtitles, icons & colors)
+const CATEGORY_META: Record<string, { subtitle: string; theme: "strawberry" | "kiwi" | "banana"; icon: string }> = {
+  "Ensaladas": {
+    subtitle: "Frescas, nutritivas y preparadas en el momento",
+    theme: "kiwi",
+    icon: "🥗"
   },
-  "Ensaladas de Frutas": {
-    subtitle: "Preparadas al instante maceradas en jugo 100% natural",
-    theme: "banana"
+  "Desayunos": {
+    subtitle: "Energía natural para arrancar tu día con fruta fresca y yogur",
+    theme: "banana",
+    icon: "🥣"
   },
-  "Combinaciones con Yogur & Granola": {
-    subtitle: "Equilibrio ideal entre yogur cremoso, granola horneada y fruta",
-    theme: "kiwi"
+  "Almuerzos": {
+    subtitle: "Opciones saludables, viandas completas, tartas y platos calientes",
+    theme: "strawberry",
+    icon: "🥪"
   },
-  "Avena Trasnochada (Overnight Oats)": {
-    subtitle: "Avena suave remojada en frío, nutritiva, ligera y saciante",
-    theme: "banana"
+  "Meriendas": {
+    subtitle: "Tentaciones frutales, pancakes y snacks saludables para la tarde",
+    theme: "banana",
+    icon: "🍓"
   },
-  "Servicio para Eventos & Reuniones": {
-    subtitle: "Presentaciones especiales para eventos corporativos y festejos",
-    theme: "strawberry"
+  "Opciones Keto": {
+    subtitle: "Bajas en carbohidratos, ricas y altamente nutritivas",
+    theme: "kiwi",
+    icon: "🥑"
+  },
+  "Eventos & Celebración": {
+    subtitle: "Bandejas abundantes de fruta para compartir en tus festejos",
+    theme: "strawberry",
+    icon: "🎉"
   }
 };
 
@@ -167,41 +177,58 @@ function buildCategoriesFromItems(rawItems: any[]): Category[] {
   const categoryMap = new Map<string, Product[]>();
 
   const canonicalOrder = [
-    "Vasos de Fruta Cortada",
-    "Ensaladas de Frutas",
-    "Combinaciones con Yogur & Granola",
-    "Avena Trasnochada (Overnight Oats)",
-    "Servicio para Eventos & Reuniones"
+    "Ensaladas",
+    "Desayunos",
+    "Almuerzos",
+    "Meriendas",
+    "Opciones Keto",
+    "Eventos & Celebración"
   ];
 
   rawItems
-    .filter((row) => row.id !== "cup-builder-config" && row.category !== "Armá tu Vaso")
+    .filter((row) => 
+      row.id !== "cup-builder-config" && 
+      row.id !== "corta-la-fruta-reviews" && 
+      !row.id.includes("review") &&
+      !row.id.includes("config") &&
+      row.category !== "Armá tu Vaso" &&
+      row.category !== "Configuracion" &&
+      row.category !== "Reseñas"
+    )
     .forEach((row) => {
-      const catName = row.category || "Otros";
-      if (!categoryMap.has(catName)) {
-        categoryMap.set(catName, []);
-      }
+      const rawCat = row.category || "Otros";
+      const catList = rawCat.split(/[,;|]/).map((c: string) => c.trim()).filter(Boolean);
+      if (catList.length === 0) catList.push("Otros");
 
-    const regPrice = Number(row.price) || 0;
-    const rawPromo = row.promo_price ?? (row.usdzurl && !isNaN(Number(row.usdzurl)) ? Number(row.usdzurl) : null);
-    const promoPrice = rawPromo && Number(rawPromo) > 0 && Number(rawPromo) < regPrice ? Number(rawPromo) : null;
-    
-    categoryMap.get(catName)!.push({
-      id: row.id,
-      name: row.name,
-      description: row.description || "",
-      price: regPrice,
-      promoPrice: promoPrice,
-      badge: row.glburl ? "★ Destacado 3D" : undefined,
-      badgeType: "strawberry",
-      imageUrl: (row.image_urls && row.image_urls[0]) || "/products/especial-corta-la-fruta.png",
-      has3DModel: !!row.glburl,
-      glbUrl: row.glburl || undefined,
-      usdzUrl: row.usdzurl || undefined,
-      scale: row.scale || 1,
-      categoryName: catName,
+      const regPrice = Number(row.price) || 0;
+      const rawPromo = row.promo_price ?? (row.usdzurl && !isNaN(Number(row.usdzurl)) ? Number(row.usdzurl) : null);
+      const promoPrice = rawPromo && Number(rawPromo) > 0 && Number(rawPromo) < regPrice ? Number(rawPromo) : null;
+      
+      const productObj = {
+        id: row.id,
+        name: row.name,
+        description: row.description || "",
+        price: regPrice,
+        promoPrice: promoPrice,
+        badge: row.glburl ? "★ Destacado 3D" : undefined,
+        badgeType: "strawberry" as const,
+        imageUrl: (row.image_urls && row.image_urls[0]) || "/products/especial-corta-la-fruta.png",
+        has3DModel: !!row.glburl,
+        glbUrl: row.glburl || undefined,
+        usdzUrl: row.usdzurl || undefined,
+        scale: row.scale || 1,
+      };
+
+      catList.forEach((catName: string) => {
+        if (!categoryMap.has(catName)) {
+          categoryMap.set(catName, []);
+        }
+        categoryMap.get(catName)!.push({
+          ...productObj,
+          categoryName: catName,
+        });
+      });
     });
-  });
 
   const categories: Category[] = [];
   const processedNames = new Set<string>();
@@ -210,7 +237,8 @@ function buildCategoriesFromItems(rawItems: any[]): Category[] {
     if (categoryMap.has(catName)) {
       const meta = CATEGORY_META[catName] || {
         subtitle: "Catálogo de productos frescos seleccionados",
-        theme: idx % 3 === 0 ? "strawberry" : idx % 3 === 1 ? "banana" : "kiwi"
+        theme: idx % 3 === 0 ? "strawberry" : idx % 3 === 1 ? "banana" : "kiwi",
+        icon: "✨"
       };
       categories.push({
         id: `c_${idx + 1}`,
@@ -239,126 +267,32 @@ function buildCategoriesFromItems(rawItems: any[]): Category[] {
   return categories;
 }
 
-interface GoogleReview {
-  id: string;
-  author_name: string;
-  rating: number;
-  time: string;
-  text: string;
-  verified?: boolean;
-}
+import { DEFAULT_REVIEWS_CONFIG, type ReviewsConfig, type GoogleReviewItem } from "@/app/api/reviews/route";
 
-const GOOGLE_REVIEWS_DATA: GoogleReview[] = [
-  {
-    id: "r1",
-    author_name: "Valeria M.",
-    rating: 5,
-    time: "Hace 1 semana",
-    text: "Fui con mi mamá, nos dejaron probar cosas, las ensaladas son deliciosas, todo es súper saludable y fresco. La dueña es encantadora!",
-    verified: true,
-  },
-  {
-    id: "r2",
-    author_name: "Gonzalo R.",
-    rating: 5,
-    time: "Hace 2 semanas",
-    text: "La fruta es increíblemente fresca, y las combinaciones con yogur y granola son deliciosas. Perfecto para desayunos y meriendas saludables.",
-    verified: true,
-  },
-  {
-    id: "r3",
-    author_name: "Camila P.",
-    rating: 5,
-    time: "Hace 3 semanas",
-    text: "Excelente propuesta en Quilmes! Todo impecable, presentación hermosa y la atención de 10. Muy recomendado para eventos también.",
-    verified: true,
-  },
-  {
-    id: "r4",
-    author_name: "Martín D.",
-    rating: 5,
-    time: "Hace 1 mes",
-    text: "Todo estaba delicioso, fresco, de excelente calidad, y el servicio fue impecable. Los overnight oats de cacao y banana son un 10.",
-    verified: true,
-  },
-  {
-    id: "r5",
-    author_name: "Luciana B.",
-    rating: 5,
-    time: "Hace 1 mes",
-    text: "Hermoso lugar y riquísima toda la fruta cortada al momento. Se nota el amor y la frescura en cada producto. Volveré siempre!",
-    verified: true,
-  },
-  {
-    id: "r6",
-    author_name: "Federico S.",
-    rating: 5,
-    time: "Hace 2 meses",
-    text: "Excelente calidad de frutas, higiene y atención. El visor 3D es súper original y los potes de yogur con frutas están bárbaros.",
-    verified: true,
-  },
-  {
-    id: "r7",
-    author_name: "Agustina V.",
-    rating: 5,
-    time: "Hace 2 meses",
-    text: "Pedí vasos de frutas para el cumpleaños de mi nena y a todos les encantó! Súper frescos, coloridos y prácticos. Sin dudas los vuelvo a elegir.",
-    verified: true,
-  },
-  {
-    id: "r8",
-    author_name: "Nicolás T.",
-    rating: 5,
-    time: "Hace 2 meses",
-    text: "Los jugos naturales y las frutas cortadas son de primera. La mejor opción sana en Quilmes centro, atienden rapidísimo y con la mejor onda.",
-    verified: true,
-  },
-  {
-    id: "r9",
-    author_name: "Florencia G.",
-    rating: 5,
-    time: "Hace 3 meses",
-    text: "Me encanta la combinación de chia pudding con frutas tropicales. Es riquísimo y llenador para el almuerzo en la oficina. 100% recomendado!",
-    verified: true,
-  },
-  {
-    id: "r10",
-    author_name: "Matías L.",
-    rating: 5,
-    time: "Hace 3 meses",
-    text: "Pedí por WhatsApp y llegó impecable, súper frío y con la fruta crocante y dulce. La calidad es insuperable. Un 10 rotundo.",
-    verified: true,
-  },
-  {
-    id: "r11",
-    author_name: "Sofía H.",
-    rating: 5,
-    time: "Hace 4 meses",
-    text: "Un concepto innovador y muy necesario. Frutas frescas de verdad, nada de conservantes ni almíbar pesado. La ensalada cítrica es una locura de rica!",
-    verified: true,
-  },
-  {
-    id: "r12",
-    author_name: "Santiago E.",
-    rating: 5,
-    time: "Hace 4 meses",
-    text: "Excelente atención de los chicos, el local es súper limpio y los productos son de primerísima calidad. Los potes con frutos rojos son mi perdición.",
-    verified: true,
-  }
-];
-
-function GooglePlacesWidget({ 
-  rotateTime = 4500 
-}: { 
-  rotateTime?: number;
-}) {
-  // Exclusively show verified 5-star reviews
-  const [reviews] = useState<GoogleReview[]>(() => GOOGLE_REVIEWS_DATA.filter((r) => r.rating === 5));
+function GooglePlacesWidget() {
+  const [config, setConfig] = useState<ReviewsConfig>(DEFAULT_REVIEWS_CONFIG);
   const [currentIndex, setCurrentIndex] = useState<number>(0);
   const [visibleCount, setVisibleCount] = useState<number>(3);
   const [isPaused, setIsPaused] = useState<boolean>(false);
 
-  // Responsive items count
+  // Swipe / Drag movement state
+  const [touchStartX, setTouchStartX] = useState<number | null>(null);
+  const [dragOffset, setDragOffset] = useState<number>(0);
+  const [isDragging, setIsDragging] = useState<boolean>(false);
+
+  // Fetch reviews from our custom API
+  useEffect(() => {
+    fetch("/api/reviews")
+      .then((res) => res.json())
+      .then((data) => {
+        if (data && Array.isArray(data.reviews) && data.reviews.length > 0) {
+          setConfig(data);
+        }
+      })
+      .catch((err) => console.warn("Using default reviews fallback:", err));
+  }, []);
+
+  // Responsive visible count for carousel mode
   useEffect(() => {
     const handleResize = () => {
       if (window.innerWidth < 640) {
@@ -374,6 +308,7 @@ function GooglePlacesWidget({
     return () => window.removeEventListener("resize", handleResize);
   }, []);
 
+  const reviews = config.reviews && config.reviews.length > 0 ? config.reviews : DEFAULT_REVIEWS_CONFIG.reviews;
   const maxIndex = Math.max(0, reviews.length - visibleCount);
 
   const nextSlide = () => {
@@ -384,35 +319,159 @@ function GooglePlacesWidget({
     setCurrentIndex((prev) => (prev <= 0 ? maxIndex : prev - 1));
   };
 
-  // Auto rotation carousel loop
+  // Carousel auto-slide timer
   useEffect(() => {
-    if (isPaused || maxIndex <= 0) return;
+    if (isPaused || isDragging || maxIndex <= 0) return;
     const timer = setInterval(() => {
       setCurrentIndex((prev) => (prev >= maxIndex ? 0 : prev + 1));
-    }, rotateTime);
+    }, 4500);
     return () => clearInterval(timer);
-  }, [isPaused, maxIndex, rotateTime]);
+  }, [isPaused, isDragging, maxIndex]);
+
+  // Touch Swipe Handlers (Mobile)
+  const handleTouchStart = (e: React.TouchEvent) => {
+    setTouchStartX(e.touches[0].clientX);
+    setDragOffset(0);
+    setIsPaused(true);
+  };
+
+  const handleTouchMove = (e: React.TouchEvent) => {
+    if (touchStartX === null) return;
+    const currentX = e.touches[0].clientX;
+    setDragOffset(currentX - touchStartX);
+  };
+
+  const handleTouchEnd = () => {
+    if (touchStartX === null) return;
+    const threshold = 40; // minimum px movement to switch slide
+    if (dragOffset < -threshold) {
+      nextSlide();
+    } else if (dragOffset > threshold) {
+      prevSlide();
+    }
+    setTouchStartX(null);
+    setDragOffset(0);
+    setTimeout(() => setIsPaused(false), 800);
+  };
+
+  // Mouse Drag Handlers (Desktop)
+  const handleMouseDown = (e: React.MouseEvent) => {
+    setTouchStartX(e.clientX);
+    setDragOffset(0);
+    setIsDragging(true);
+    setIsPaused(true);
+  };
+
+  const handleMouseMove = (e: React.MouseEvent) => {
+    if (!isDragging || touchStartX === null) return;
+    setDragOffset(e.clientX - touchStartX);
+  };
+
+  const handleMouseUp = () => {
+    if (!isDragging) return;
+    const threshold = 50;
+    if (dragOffset < -threshold) {
+      nextSlide();
+    } else if (dragOffset > threshold) {
+      prevSlide();
+    }
+    setIsDragging(false);
+    setTouchStartX(null);
+    setDragOffset(0);
+    setTimeout(() => setIsPaused(false), 800);
+  };
+
+  const renderReviewCard = (rev: GoogleReviewItem) => (
+    <div 
+      key={rev.id}
+      className="bg-white rounded-2xl p-4 sm:p-5 border border-zinc-200/80 shadow-2xs flex flex-col justify-between h-full hover:border-zinc-300 hover:shadow-md transition-all select-none pointer-events-none sm:pointer-events-auto"
+    >
+      <div>
+        {/* Customer Header: Avatar + Name + Stars */}
+        <div className="flex items-start justify-between gap-2 mb-3">
+          <div className="flex items-center gap-2.5 min-w-0">
+            <div className="relative shrink-0">
+              <img 
+                src={rev.author_photo || "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80"}
+                alt={rev.author_name}
+                className="w-10 h-10 rounded-full object-cover border-2 border-white shadow-xs"
+                loading="lazy"
+                onError={(e) => {
+                  (e.target as HTMLImageElement).src = "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80";
+                }}
+              />
+              {/* Google G badge overlay */}
+              <div className="absolute -bottom-1 -right-1 w-4 h-4 bg-white rounded-full flex items-center justify-center shadow-2xs border border-zinc-100">
+                <svg className="w-2.5 h-2.5" viewBox="0 0 24 24">
+                  <path fill="#4285F4" d="M23.745 12.27c0-.7-.06-1.4-.19-2.07H12v4.51h6.6c-.29 1.52-1.14 2.82-2.4 3.68v3.05h3.88c2.27-2.09 3.66-5.17 3.66-9.17z"/>
+                  <path fill="#34A853" d="M12 24c3.24 0 5.95-1.08 7.93-2.91l-3.88-3.05c-1.08.72-2.45 1.16-4.05 1.16-3.12 0-5.77-2.1-6.72-4.93H1.25v3.15C3.26 21.36 7.33 24 12 24z"/>
+                  <path fill="#FBBC05" d="M5.28 14.27c-.25-.72-.38-1.49-.38-2.27s.13-1.55.38-2.27V6.58H1.25C.45 8.18 0 9.99 0 12s.45 3.82 1.25 5.42l4.03-3.15z"/>
+                  <path fill="#EA4335" d="M12 4.75c1.77 0 3.35.61 4.6 1.8l3.42-3.42C17.95 1.19 15.24 0 12 0 7.33 0 3.26 2.64 1.25 6.58l4.03 3.15c.95-2.83 3.6-4.98 6.72-4.98z"/>
+                </svg>
+              </div>
+            </div>
+
+            <div className="min-w-0">
+              <h5 className="text-xs font-bold text-zinc-900 flex items-center gap-1">
+                <span className="truncate max-w-[125px] sm:max-w-[150px]">{rev.author_name}</span>
+                {rev.verified && (
+                  <svg className="w-3.5 h-3.5 text-blue-500 fill-current shrink-0" viewBox="0 0 24 24" aria-label="Reseña verificada">
+                    <title>Reseña verificada</title>
+                    <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"/>
+                  </svg>
+                )}
+              </h5>
+              <div className="flex items-center gap-1 text-[10px] text-zinc-400 font-medium">
+                {rev.local_guide && (
+                  <span className="text-amber-600 font-semibold">Local Guide</span>
+                )}
+                {rev.local_guide && <span>•</span>}
+                <span>{rev.time}</span>
+              </div>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-0.5 text-amber-400 shrink-0">
+            {[...Array(rev.rating || 5)].map((_, i) => (
+              <Star key={i} size={13} className="fill-amber-400" />
+            ))}
+          </div>
+        </div>
+
+        {/* Review Text */}
+        <p className="text-xs text-zinc-600 leading-relaxed italic font-normal line-clamp-4">
+          &ldquo;{rev.text}&rdquo;
+        </p>
+      </div>
+
+      <div className="mt-4 pt-2.5 border-t border-zinc-100 flex items-center justify-between text-[10px] text-zinc-400">
+        <span className="font-semibold text-emerald-700 flex items-center gap-1">
+          <span>Reseña de Google Maps</span>
+        </span>
+        <span className="font-mono font-bold text-zinc-700">★ 5.0</span>
+      </div>
+    </div>
+  );
 
   return (
     <div 
       id="google-reviews" 
-      className="w-full relative"
+      className="w-full relative select-none"
       onMouseEnter={() => setIsPaused(true)}
       onMouseLeave={() => setIsPaused(false)}
       itemScope
       itemType="http://schema.org/Store"
     >
-      {/* Schema.org metadata as per peledies/google-places */}
-      <meta itemProp="name" content="Corta la Fruta" />
+      <meta itemProp="name" content="Corta la fruta" />
       <meta itemProp="image" content="https://cortalafruta.vercel.app/logo-corta-la-fruta.png" />
       <div itemProp="aggregateRating" itemScope itemType="http://schema.org/AggregateRating" className="hidden">
         <span itemProp="ratingValue">4.8</span>
         <span itemProp="bestRating">5</span>
-        <span itemProp="ratingCount">48</span>
+        <span itemProp="ratingCount">{reviews.length}</span>
       </div>
 
-      {/* Header controls (prev/next) */}
-      <div className="flex items-center justify-between mb-4">
+      {/* Header controls & Google Branding */}
+      <div className="flex items-center justify-between mb-4 flex-wrap gap-2">
         <div className="flex items-center gap-2">
           {/* Google G logo */}
           <svg className="w-5 h-5 shrink-0" viewBox="0 0 24 24">
@@ -421,104 +480,77 @@ function GooglePlacesWidget({
             <path fill="#FBBC05" d="M5.28 14.27c-.25-.72-.38-1.49-.38-2.27s.13-1.55.38-2.27V6.58H1.25C.45 8.18 0 9.99 0 12s.45 3.82 1.25 5.42l4.03-3.15z"/>
             <path fill="#EA4335" d="M12 4.75c1.77 0 3.35.61 4.6 1.8l3.42-3.42C17.95 1.19 15.24 0 12 0 7.33 0 3.26 2.64 1.25 6.58l4.03 3.15c.95-2.83 3.6-4.98 6.72-4.98z"/>
           </svg>
-          <span className="text-xs font-bold text-zinc-800">Opiniones verificadas en Google Maps</span>
+          <div>
+            <span className="text-xs font-bold text-zinc-900 block leading-tight">
+              Opiniones Reales en Google Maps
+            </span>
+            <span className="text-[10px] text-zinc-500">
+              Nicolás Videla 173, Quilmes • Calificación 4.8 ★★★★★ ({reviews.length} opiniones)
+            </span>
+          </div>
         </div>
 
-        <div className="flex items-center gap-1.5">
-          <button
-            onClick={prevSlide}
-            aria-label="Anterior reseña"
-            className="w-8 h-8 rounded-full bg-white hover:bg-zinc-100 border border-zinc-200 text-zinc-700 flex items-center justify-center transition-colors shadow-2xs active:scale-95"
-          >
-            <ChevronLeft size={16} />
-          </button>
-          <button
-            onClick={nextSlide}
-            aria-label="Siguiente reseña"
-            className="w-8 h-8 rounded-full bg-white hover:bg-zinc-100 border border-zinc-200 text-zinc-700 flex items-center justify-center transition-colors shadow-2xs active:scale-95"
-          >
-            <ChevronRight size={16} />
-          </button>
+        {/* Carousel controls with count indicator */}
+        <div className="flex items-center gap-2">
+          <span className="text-[11px] font-bold text-zinc-400 font-mono hidden sm:inline">
+            {currentIndex + 1} - {Math.min(currentIndex + visibleCount, reviews.length)} de {reviews.length}
+          </span>
+          <div className="flex items-center gap-1.5">
+            <button
+              onClick={prevSlide}
+              aria-label="Anterior reseña"
+              className="w-8 h-8 rounded-full bg-white hover:bg-zinc-100 border border-zinc-200 text-zinc-700 flex items-center justify-center transition-colors shadow-2xs active:scale-95 cursor-pointer touch-manipulation"
+            >
+              <ChevronLeft size={16} />
+            </button>
+            <button
+              onClick={nextSlide}
+              aria-label="Siguiente reseña"
+              className="w-8 h-8 rounded-full bg-white hover:bg-zinc-100 border border-zinc-200 text-zinc-700 flex items-center justify-center transition-colors shadow-2xs active:scale-95 cursor-pointer touch-manipulation"
+            >
+              <ChevronRight size={16} />
+            </button>
+          </div>
         </div>
       </div>
 
-      {/* Carousel Track */}
-      <div className="overflow-hidden -mx-2">
+      {/* SWIPEABLE / DRAGGABLE CAROUSEL TRACK */}
+      <div 
+        className="overflow-hidden -mx-2 cursor-grab active:cursor-grabbing touch-pan-y"
+        onTouchStart={handleTouchStart}
+        onTouchMove={handleTouchMove}
+        onTouchEnd={handleTouchEnd}
+        onMouseDown={handleMouseDown}
+        onMouseMove={handleMouseMove}
+        onMouseUp={handleMouseUp}
+        onMouseLeave={handleMouseUp}
+      >
         <div 
-          className="flex transition-transform duration-500 ease-out"
-          style={{ transform: `translateX(-${currentIndex * (100 / visibleCount)}%)` }}
+          className={`flex ${isDragging || dragOffset !== 0 ? "" : "transition-transform duration-500 ease-out"}`}
+          style={{ 
+            transform: `translateX(calc(-${currentIndex * (100 / visibleCount)}% + ${dragOffset}px))` 
+          }}
         >
-          {reviews.map((rev, idx) => {
-            const avatarColors = [
-              "bg-gradient-to-br from-rose-500 to-rose-600",
-              "bg-gradient-to-br from-blue-500 to-blue-600",
-              "bg-gradient-to-br from-emerald-500 to-emerald-600",
-              "bg-gradient-to-br from-amber-500 to-amber-600",
-              "bg-gradient-to-br from-purple-500 to-purple-600",
-              "bg-gradient-to-br from-indigo-500 to-indigo-600",
-              "bg-gradient-to-br from-teal-500 to-teal-600",
-              "bg-gradient-to-br from-orange-500 to-orange-600",
-            ];
-            const colorClass = avatarColors[idx % avatarColors.length];
-
-            return (
-              <div 
-                key={rev.id}
-                className="shrink-0 px-2"
-                style={{ width: `${100 / visibleCount}%` }}
-              >
-                <div className="bg-white rounded-2xl p-5 border border-zinc-200/80 shadow-2xs flex flex-col justify-between h-full hover:border-zinc-300 transition-all">
-                  <div>
-                    <div className="flex items-center justify-between gap-2 mb-3">
-                      <div className="flex items-center gap-2.5">
-                        <div className={`w-9 h-9 rounded-full ${colorClass} text-white font-black text-xs flex items-center justify-center shadow-xs shrink-0 select-none`}>
-                          {rev.author_name.charAt(0)}
-                        </div>
-                        <div>
-                          <h5 className="text-xs font-bold text-zinc-900 flex items-center gap-1.5">
-                            <span>{rev.author_name}</span>
-                            {rev.verified && (
-                              <svg className="w-3.5 h-3.5 text-blue-500 fill-current" viewBox="0 0 24 24">
-                                <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"/>
-                              </svg>
-                            )}
-                          </h5>
-                          <span className="text-[10px] text-zinc-400 font-medium">{rev.time}</span>
-                        </div>
-                      </div>
-
-                    <div className="flex items-center gap-0.5 text-amber-400">
-                      {[...Array(rev.rating)].map((_, i) => (
-                        <Star key={i} size={13} className="fill-amber-400" />
-                      ))}
-                    </div>
-                  </div>
-
-                  {/* Review Text */}
-                  <p className="text-xs text-zinc-600 leading-relaxed italic font-normal line-clamp-3">
-                    &ldquo;{rev.text}&rdquo;
-                  </p>
-                </div>
-
-                <div className="mt-4 pt-2.5 border-t border-zinc-100 flex items-center justify-between text-[10px] text-zinc-400">
-                  <span className="font-semibold text-emerald-700">Reseña de Google Maps</span>
-                  <span className="font-mono text-zinc-500">★ 5.0</span>
-                </div>
-              </div>
+          {reviews.map((rev) => (
+            <div 
+              key={rev.id}
+              className="shrink-0 px-2"
+              style={{ width: `${100 / visibleCount}%` }}
+            >
+              {renderReviewCard(rev)}
             </div>
-          );
-        })}
+          ))}
         </div>
       </div>
 
       {/* Dots Indicator */}
       <div className="flex items-center justify-center gap-1.5 mt-4">
-        {Array.from({ length: maxIndex + 1 }).map((_, idx) => (
+        {Array.from({ length: Math.min(10, maxIndex + 1) }).map((_, idx) => (
           <button
             key={idx}
             onClick={() => setCurrentIndex(idx)}
             aria-label={`Ir a la reseña ${idx + 1}`}
-            className={`h-2 rounded-full transition-all duration-300 ${
+            className={`h-2 rounded-full transition-all duration-300 cursor-pointer ${
               idx === currentIndex ? "w-6 bg-emerald-600" : "w-2 bg-zinc-300 hover:bg-zinc-400"
             }`}
           />
@@ -526,18 +558,18 @@ function GooglePlacesWidget({
       </div>
 
       {/* Footer link to Google Maps */}
-      <div className="mt-4 flex items-center justify-between flex-wrap gap-2 text-xs text-zinc-500 pt-2 border-t border-zinc-200/60">
+      <div className="mt-4 flex items-center justify-between flex-wrap gap-2 text-xs text-zinc-500 pt-3 border-t border-zinc-200/60">
         <div className="flex items-center gap-1.5">
           <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
-          <span>Sincronizado con Google Places</span>
+          <span>Deslizá para ver más opiniones</span>
         </div>
         <a 
-          href="https://maps.google.com/?q=Corta+La+Fruta+Nicolas+Videla+173+Quilmes"
+          href={config.business?.mapUrl || "https://maps.app.goo.gl/Uc8cmMc5MBuLm5pX8"}
           target="_blank"
           rel="noopener noreferrer"
           className="text-emerald-700 hover:text-emerald-800 font-bold hover:underline inline-flex items-center gap-1"
         >
-          <span>Ver todas las opiniones en Google Maps</span>
+          <span>Ver perfil oficial en Google Maps</span>
           <ExternalLink size={13} />
         </a>
       </div>
@@ -763,8 +795,8 @@ export default function CortaLaFrutaPublicPage() {
     setBuilderNotes("");
     setBuilderQuantity(1);
     setOpenSections({
-      size: !sizeId,
-      comboType: !!sizeId,
+      size: true,
+      comboType: false,
       step1: false,
       step2: false,
       step3: false,
@@ -1022,9 +1054,15 @@ export default function CortaLaFrutaPublicPage() {
 
   // Flattened products for "Todos los productos" pagination (4 cols x 2 rows = 8 items per page)
   const ITEMS_PER_PAGE = 8;
-  const standardProducts = filteredCategories.flatMap(cat => 
-    cat.items.map(item => ({ ...item, categoryName: cat.name }))
-  );
+  const standardProducts = activeCategory === "all"
+    ? Array.from(
+        new Map(
+          categories.flatMap(cat => cat.items.map(item => [item.id, { ...item, categoryName: item.categoryName }]))
+        ).values()
+      )
+    : filteredCategories.flatMap(cat => 
+        cat.items.map(item => ({ ...item, categoryName: cat.name }))
+      );
   
   const allFlatProducts = activeCategory === "armar-vaso"
     ? (customCupProduct ? [customCupProduct] : [])
@@ -1196,14 +1234,23 @@ export default function CortaLaFrutaPublicPage() {
         <div className="w-full px-4 sm:px-6 lg:px-8 h-16 sm:h-20 flex items-center justify-between gap-3">
           
           {/* Logo & Store Name */}
-          <div className="flex items-center gap-2.5 sm:gap-4 min-w-0">
+          <div className="flex items-center gap-2 sm:gap-3.5 min-w-0">
             <img 
               src="/logo-corta-la-fruta.png" 
               alt="Corta la Fruta Logo" 
               className="h-10 sm:h-14 md:h-16 w-auto object-contain shrink-0" 
             />
-            <h1 className="font-extrabold text-xl sm:text-2xl md:text-3xl lg:text-4xl tracking-tight text-zinc-900 leading-none truncate">
-              Corta la Fruta
+            <h1 
+              aria-label="Corta la Fruta"
+              className="font-extrabold text-xl sm:text-2xl md:text-3xl lg:text-4xl tracking-tight text-zinc-900 leading-none flex items-center whitespace-nowrap select-none"
+            >
+              <span>C</span>
+              <img 
+                src="/orange-o.png" 
+                alt="O" 
+                className="inline-block h-[0.88em] w-[0.88em] object-contain mx-[0.02em] translate-y-[0.02em] shrink-0 drop-shadow-xs" 
+              />
+              <span>RTA LA FRUTA</span>
             </h1>
           </div>
 
@@ -1283,11 +1330,14 @@ export default function CortaLaFrutaPublicPage() {
 
             {cupConfig.enabled && (
               <button
-                onClick={() => setActiveCategory("armar-vaso")}
-                className={`shrink-0 px-3 sm:px-3.5 py-1.5 sm:py-2 rounded-xl text-xs font-bold whitespace-nowrap transition-all flex items-center gap-1.5 ${
+                onClick={() => {
+                  setActiveCategory("armar-vaso");
+                  openCupBuilderForSize("");
+                }}
+                className={`shrink-0 px-3 sm:px-3.5 py-1.5 sm:py-2 rounded-xl text-xs font-bold whitespace-nowrap transition-all flex items-center gap-1.5 cursor-pointer touch-manipulation ${
                   activeCategory === "armar-vaso"
                     ? "bg-rose-600 text-white shadow-xs"
-                    : "bg-zinc-100 text-zinc-600 hover:bg-zinc-200/70"
+                    : "bg-rose-50 text-rose-700 border border-rose-200/80 hover:bg-rose-100"
                 }`}
               >
                 <span>🍓 {cupConfig.name || "Armá tu Vaso"}</span>
@@ -1308,7 +1358,7 @@ export default function CortaLaFrutaPublicPage() {
                     : "bg-zinc-100 text-zinc-600 hover:bg-zinc-200/70"
                 }`}
               >
-                <span>{cat.name}</span>
+                <span>{(CATEGORY_META[cat.name]?.icon ? `${CATEGORY_META[cat.name].icon} ` : "") + cat.name}</span>
                 <span className={`text-[10px] px-1.5 py-0.2 rounded-full ${
                   activeCategory === cat.id ? "bg-white/20 text-white" : "bg-zinc-200 text-zinc-600"
                 }`}>
@@ -1367,11 +1417,14 @@ export default function CortaLaFrutaPublicPage() {
           </div>
         ) : activeCategory === "all" || activeCategory === "armar-vaso" ? (
           /* PAGINATED GRID FOR ALL PRODUCTS / ARMAR VASO */
-          <div className="space-y-8">
+          <div className="space-y-6 sm:space-y-8">
             <div className="flex items-center justify-between border-b border-zinc-200/80 pb-3">
               <div className="flex items-center gap-3 sm:gap-4">
                 {/* Organic Floating Cup - No box, pure transparent image */}
-                <div className="relative w-12 h-16 sm:w-14 sm:h-20 shrink-0 flex items-center justify-center">
+                <div 
+                  onClick={() => openCupBuilderForSize("")}
+                  className="relative w-12 h-16 sm:w-14 sm:h-20 shrink-0 flex items-center justify-center cursor-pointer active:scale-95 transition-transform touch-manipulation"
+                >
                   <img 
                     src={FRUIT_CUP_IMAGE_URL} 
                     alt="Vaso Corta la Fruta" 
@@ -1420,20 +1473,21 @@ export default function CortaLaFrutaPublicPage() {
                 const inCartItem = cart.find(i => i.product.id === product.id);
                 const quantityInCart = inCartItem ? inCartItem.quantity : 0;
                 const isCupBuilder = product.id.startsWith("cup-size-") || product.id === "cup-builder-product";
-                const sizeId = product.id.startsWith("cup-size-") ? product.id.replace("cup-size-", "") : "vaso-mediano";
 
                 return (
                   <div 
                     key={product.id}
                     onClick={() => {
                       if (isCupBuilder) {
-                        openCupBuilderForSize(sizeId);
+                        openCupBuilderForSize("");
                       } else {
                         setSelectedProduct(product);
                         setModalNote("");
                       }
                     }}
-                    className="cursor-pointer bg-white rounded-xl sm:rounded-2xl border border-zinc-200/80 hover:border-zinc-300 overflow-hidden shadow-2xs hover:shadow-md transition-all flex flex-col justify-between group p-2.5 sm:p-3.5"
+                    className={`cursor-pointer bg-white rounded-xl sm:rounded-2xl border border-zinc-200/80 hover:border-zinc-300 overflow-hidden shadow-2xs hover:shadow-md transition-all flex flex-col justify-between group p-2.5 sm:p-3.5 select-none touch-manipulation ${
+                      paginatedFlatProducts.length === 1 ? "col-span-2 max-w-md mx-auto w-full sm:col-span-1" : ""
+                    }`}
                   >
                     {/* Image / 3D Model Viewport */}
                     <div className="relative aspect-4/3 w-full bg-zinc-50 rounded-lg overflow-hidden flex items-center justify-center">
@@ -1557,9 +1611,9 @@ export default function CortaLaFrutaPublicPage() {
                             type="button"
                             onClick={(e) => {
                               e.stopPropagation();
-                              openCupBuilderForSize("vaso-mediano");
+                              openCupBuilderForSize("");
                             }}
-                            className="w-full bg-[#E2004B] hover:bg-[#c70041] text-white font-bold text-xs py-2 px-3 rounded-xl transition-all shadow-2xs flex items-center justify-center gap-1.5 active:scale-95"
+                            className="w-full bg-[#E2004B] hover:bg-[#c70041] active:bg-[#a60037] text-white font-bold text-xs py-2.5 px-3 rounded-xl transition-all shadow-2xs flex items-center justify-center gap-1.5 active:scale-95 cursor-pointer touch-manipulation"
                           >
                             <span>Armar Vaso</span>
                             <ChevronRight size={14} />
@@ -2666,18 +2720,27 @@ export default function CortaLaFrutaPublicPage() {
 
       {/* CUP BUILDER MODAL (1:1 EXACT PEDIDOSYA MULTI-SIZE COMBO STYLE) */}
       {isCupBuilderOpen && (
-        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-end sm:items-center justify-center p-0 sm:p-4 overflow-y-auto animate-in fade-in duration-150">
-          <div className="bg-white w-full max-w-md sm:rounded-2xl max-h-[92vh] sm:max-h-[85vh] flex flex-col shadow-2xl overflow-hidden animate-in slide-in-from-bottom-4 duration-200">
+        <div 
+          onClick={() => setIsCupBuilderOpen(false)}
+          className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-end sm:items-center justify-center p-0 sm:p-4 overflow-y-auto animate-in fade-in duration-150"
+        >
+          <div 
+            onClick={(e) => e.stopPropagation()}
+            className="bg-white w-full max-w-md rounded-t-3xl sm:rounded-2xl h-[92dvh] max-h-[92dvh] sm:h-auto sm:max-h-[85vh] flex flex-col shadow-2xl overflow-hidden animate-in slide-in-from-bottom-4 duration-200"
+          >
+            {/* Mobile Sheet Drag Handle */}
+            <div className="w-12 h-1.5 bg-zinc-300 rounded-full mx-auto mt-2.5 mb-1 sm:hidden shrink-0" />
             
             {/* PedidosYa Top Bar */}
-            <div className="sticky top-0 z-10 bg-white border-b border-zinc-100 px-4 py-3.5 flex items-center justify-between shrink-0">
+            <div className="sticky top-0 z-10 bg-white border-b border-zinc-100 px-4 py-3 sm:py-3.5 flex items-center justify-between shrink-0">
               <button
                 type="button"
                 onClick={() => setIsCupBuilderOpen(false)}
-                className="p-1 -ml-1 text-zinc-900 hover:text-zinc-600 transition-colors"
+                className="p-1 -ml-1 text-zinc-900 hover:text-zinc-600 transition-colors flex items-center gap-1 cursor-pointer touch-manipulation"
                 aria-label="Volver"
               >
-                <ChevronLeft size={24} className="stroke-[2.5]" />
+                <ChevronLeft size={22} className="stroke-[2.5]" />
+                <span className="text-xs font-bold text-zinc-600 sm:hidden">Volver</span>
               </button>
 
               <h3 className="font-bold text-base text-zinc-900 leading-tight truncate px-2 text-center">
@@ -2686,21 +2749,22 @@ export default function CortaLaFrutaPublicPage() {
 
               <button
                 type="button"
-                className="p-1 -mr-1 text-zinc-800 hover:text-rose-500 transition-colors"
-                aria-label="Favorito"
+                onClick={() => setIsCupBuilderOpen(false)}
+                className="p-1 -mr-1 text-zinc-400 hover:text-zinc-800 transition-colors cursor-pointer touch-manipulation"
+                aria-label="Cerrar"
               >
-                <Heart size={20} className="stroke-[2]" />
+                <X size={20} className="stroke-[2.5]" />
               </button>
             </div>
 
             {/* Scrollable List of Options */}
-            <div className="overflow-y-auto flex-1 divide-y divide-zinc-200/80 px-4 sm:px-5">
+            <div className="overflow-y-auto flex-1 divide-y divide-zinc-200/80 px-4 sm:px-5 overscroll-contain touch-pan-y">
               
               {/* SECTION: TAMAÑO DE TU VASO */}
               <div className="py-4">
                 <div 
                   onClick={() => toggleSection("size")}
-                  className="flex items-start justify-between cursor-pointer select-none mb-1"
+                  className="flex items-start justify-between cursor-pointer select-none mb-1 touch-manipulation"
                 >
                   <div>
                     <h4 className="font-bold text-base text-zinc-900">
@@ -2734,7 +2798,7 @@ export default function CortaLaFrutaPublicPage() {
                             setBuilderSelectedSizeId(size.id);
                             setOpenSections(prev => ({ ...prev, size: false, comboType: true }));
                           }}
-                          className="py-3 flex items-center justify-between cursor-pointer hover:bg-zinc-50/70 transition-colors select-none"
+                          className="py-3.5 px-1.5 flex items-center justify-between cursor-pointer hover:bg-zinc-50 active:bg-zinc-100 transition-colors select-none touch-manipulation"
                         >
                           <div>
                             <span className="text-sm font-medium text-zinc-900 flex items-center gap-1.5">
@@ -2794,7 +2858,7 @@ export default function CortaLaFrutaPublicPage() {
                         setBuilderComboType("full");
                         setOpenSections(prev => ({ ...prev, comboType: false, step1: true }));
                       }}
-                      className="py-3 flex items-center justify-between cursor-pointer hover:bg-zinc-50/70 transition-colors select-none"
+                      className="py-3.5 px-1.5 flex items-center justify-between cursor-pointer hover:bg-zinc-50 active:bg-zinc-100 transition-colors select-none touch-manipulation"
                     >
                       <div>
                         <span className="text-[10px] text-rose-600 font-bold block leading-none mb-1">
@@ -2822,7 +2886,7 @@ export default function CortaLaFrutaPublicPage() {
                         setBuilderComboType("fruits_only");
                         setOpenSections(prev => ({ ...prev, comboType: false, step1: true }));
                       }}
-                      className="py-3 flex items-center justify-between cursor-pointer hover:bg-zinc-50/70 transition-colors select-none"
+                      className="py-3.5 px-1.5 flex items-center justify-between cursor-pointer hover:bg-zinc-50 active:bg-zinc-100 transition-colors select-none touch-manipulation"
                     >
                       <div>
                         <span className="text-sm font-medium text-zinc-900">
@@ -2849,7 +2913,7 @@ export default function CortaLaFrutaPublicPage() {
               <div className="py-4">
                 <div 
                   onClick={() => toggleSection("step1")}
-                  className="flex items-start justify-between cursor-pointer select-none mb-1"
+                  className="flex items-start justify-between cursor-pointer select-none mb-1 touch-manipulation"
                 >
                   <div>
                     <h4 className="font-bold text-base text-zinc-900">
@@ -2887,7 +2951,7 @@ export default function CortaLaFrutaPublicPage() {
                               setOpenSections({ size: false, comboType: false, step1: false, step2: false, step3: true, step4: false });
                             }
                           }}
-                          className="py-3 flex items-center justify-between cursor-pointer hover:bg-zinc-50/70 transition-colors select-none"
+                          className="py-3.5 px-1.5 flex items-center justify-between cursor-pointer hover:bg-zinc-50 active:bg-zinc-100 transition-colors select-none touch-manipulation"
                         >
                           <div>
                             {idx < 2 && (
@@ -2920,7 +2984,7 @@ export default function CortaLaFrutaPublicPage() {
                 <div className="py-4">
                   <div 
                     onClick={() => toggleSection("step2")}
-                    className="flex items-start justify-between cursor-pointer select-none mb-1"
+                    className="flex items-start justify-between cursor-pointer select-none mb-1 touch-manipulation"
                   >
                     <div>
                       <h4 className="font-bold text-base text-zinc-900">
@@ -2954,7 +3018,7 @@ export default function CortaLaFrutaPublicPage() {
                               setBuilderStep2Base(base.name);
                               setOpenSections({ size: false, comboType: false, step1: false, step2: false, step3: true, step4: false });
                             }}
-                            className="py-3 flex items-center justify-between cursor-pointer hover:bg-zinc-50/70 transition-colors select-none"
+                            className="py-3.5 px-1.5 flex items-center justify-between cursor-pointer hover:bg-zinc-50 active:bg-zinc-100 transition-colors select-none touch-manipulation"
                           >
                             <div>
                               {idx === 0 && (
@@ -2990,7 +3054,7 @@ export default function CortaLaFrutaPublicPage() {
               <div className="py-4">
                 <div 
                   onClick={() => toggleSection("step3")}
-                  className="flex items-start justify-between cursor-pointer select-none mb-1"
+                  className="flex items-start justify-between cursor-pointer select-none mb-1 touch-manipulation"
                 >
                   <div>
                     <h4 className="font-bold text-base text-zinc-900">
@@ -3028,7 +3092,7 @@ export default function CortaLaFrutaPublicPage() {
                               setOpenSections({ size: false, comboType: false, step1: false, step2: false, step3: false, step4: false });
                             }
                           }}
-                          className="py-3 flex items-center justify-between cursor-pointer hover:bg-zinc-50/70 transition-colors select-none"
+                          className="py-3.5 px-1.5 flex items-center justify-between cursor-pointer hover:bg-zinc-50 active:bg-zinc-100 transition-colors select-none touch-manipulation"
                         >
                           <div>
                             {idx < 2 && (
@@ -3061,7 +3125,7 @@ export default function CortaLaFrutaPublicPage() {
                 <div className="py-4">
                   <div 
                     onClick={() => toggleSection("step4")}
-                    className="flex items-start justify-between cursor-pointer select-none mb-1"
+                    className="flex items-start justify-between cursor-pointer select-none mb-1 touch-manipulation"
                   >
                     <div>
                       <h4 className="font-bold text-base text-zinc-900">
@@ -3094,7 +3158,7 @@ export default function CortaLaFrutaPublicPage() {
                           <div
                             key={top.id}
                             onClick={() => handleToggleTopping(top.name)}
-                            className="py-3 flex items-center justify-between cursor-pointer hover:bg-zinc-50/70 transition-colors select-none"
+                            className="py-3.5 px-1.5 flex items-center justify-between cursor-pointer hover:bg-zinc-50 active:bg-zinc-100 transition-colors select-none touch-manipulation"
                           >
                             <span className="text-sm font-medium text-zinc-900 flex items-center gap-1.5">
                               <span>{top.emoji || "🍯"}</span>
@@ -3133,7 +3197,7 @@ export default function CortaLaFrutaPublicPage() {
             </div>
 
             {/* PedidosYa Sticky Bottom Bar */}
-            <div className="sticky bottom-0 z-10 bg-white border-t border-zinc-200 p-4 sm:p-5 shrink-0 space-y-3 shadow-lg">
+            <div className="sticky bottom-0 z-10 bg-white border-t border-zinc-200 px-4 py-3 sm:px-5 pb-[max(1rem,env(safe-area-inset-bottom))] shrink-0 space-y-3 shadow-[0_-4px_16px_rgba(0,0,0,0.06)]">
               <div className="flex items-center justify-between">
                 <span className="text-base font-bold text-zinc-900">
                   {builderQuantity} {builderQuantity === 1 ? "producto" : "productos"}
@@ -3145,11 +3209,11 @@ export default function CortaLaFrutaPublicPage() {
 
               <div className="flex items-center gap-3">
                 {/* Stepper */}
-                <div className="bg-zinc-100 rounded-full px-3 py-2 flex items-center gap-3 text-sm font-bold text-zinc-900 shrink-0">
+                <div className="bg-zinc-100 rounded-full px-3 py-2 flex items-center gap-3 text-sm font-bold text-zinc-900 shrink-0 select-none touch-manipulation">
                   <button 
                     type="button"
                     onClick={() => setBuilderQuantity(prev => Math.max(1, prev - 1))}
-                    className="w-6 h-6 flex items-center justify-center text-zinc-700 hover:text-zinc-950 active:scale-90"
+                    className="w-6 h-6 flex items-center justify-center text-zinc-700 hover:text-zinc-950 active:scale-90 touch-manipulation"
                     aria-label="Disminuir cantidad"
                   >
                     <Minus size={16} />
@@ -3158,7 +3222,7 @@ export default function CortaLaFrutaPublicPage() {
                   <button 
                     type="button"
                     onClick={() => setBuilderQuantity(prev => prev + 1)}
-                    className="w-6 h-6 flex items-center justify-center text-zinc-700 hover:text-zinc-950 active:scale-90"
+                    className="w-6 h-6 flex items-center justify-center text-zinc-700 hover:text-zinc-950 active:scale-90 touch-manipulation"
                     aria-label="Aumentar cantidad"
                   >
                     <Plus size={16} />
@@ -3170,7 +3234,7 @@ export default function CortaLaFrutaPublicPage() {
                   type="button"
                   onClick={handleAddCustomCupToCart}
                   disabled={!currentSelectedSize || !builderComboType || !builderStep1Fruit || !builderStep3Fruit || (builderComboType === "full" && !builderStep2Base)}
-                  className="flex-1 bg-[#E2004B] hover:bg-[#c70041] disabled:opacity-40 disabled:pointer-events-none text-white font-bold text-base py-3 px-6 rounded-full transition-all shadow-xs active:scale-98 text-center flex items-center justify-center"
+                  className="flex-1 min-h-[48px] bg-[#E2004B] hover:bg-[#c70041] disabled:opacity-40 disabled:pointer-events-none text-white font-bold text-base py-3 px-6 rounded-full transition-all shadow-xs active:scale-98 text-center flex items-center justify-center touch-manipulation cursor-pointer"
                 >
                   Agregar
                 </button>

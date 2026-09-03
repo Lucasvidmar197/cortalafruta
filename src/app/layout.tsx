@@ -30,16 +30,14 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="es">
-      <head>
+    <html lang="es" suppressHydrationWarning>
+      <body className={`${plusJakartaSans.variable} font-sans bg-[#FAF9F6] text-zinc-900 min-h-screen selection:bg-rose-500 selection:text-white`}>
+        {children}
         <Script 
           type="module" 
           src="https://ajax.googleapis.com/ajax/libs/model-viewer/4.0.0/model-viewer.min.js" 
-          strategy="beforeInteractive"
+          strategy="afterInteractive"
         />
-      </head>
-      <body className={`${plusJakartaSans.variable} font-sans bg-[#FAF9F6] text-zinc-900 min-h-screen selection:bg-rose-500 selection:text-white`}>
-        {children}
       </body>
     </html>
   );

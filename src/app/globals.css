@@ -127,14 +127,42 @@ body {
 .delay-5 { animation-delay: 0.25s; }
 .delay-6 { animation-delay: 0.3s; }
 
+/* ── Marquee Keyframes for Reviews ── */
+@keyframes marquee {
+  0% { transform: translateX(0%); }
+  100% { transform: translateX(-50%); }
+}
+
+.animate-marquee-slow {
+  animation: marquee 60s linear infinite;
+}
+
+.animate-marquee-normal {
+  animation: marquee 38s linear infinite;
+}
+
+.animate-marquee-fast {
+  animation: marquee 22s linear infinite;
+}
+
+.animate-marquee-slow:hover,
+.animate-marquee-normal:hover,
+.animate-marquee-fast:hover {
+  animation-play-state: paused;
+}
+
 /* ── Reduced Motion ── */
 @media (prefers-reduced-motion: reduce) {
   .animate-fade-in-up,
   .animate-slide-in-right,
   .animate-toast,
-  .animate-btn-pulse {
+  .animate-btn-pulse,
+  .animate-marquee-slow,
+  .animate-marquee-normal,
+  .animate-marquee-fast {
     animation: none !important;
     opacity: 1 !important;
     transform: none !important;
   }
 }
+

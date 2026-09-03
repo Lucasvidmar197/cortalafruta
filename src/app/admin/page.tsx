@@ -6,7 +6,7 @@ import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase";
 import { 
   Plus, Trash2, Edit2, Save, X, ArrowLeft, Package, Layers, Box, 
-  Image as ImageIcon, Upload, Loader2, LogOut, Check, Sparkles, ExternalLink, Lock 
+  Image as ImageIcon, Upload, Loader2, LogOut, Check, Sparkles, ExternalLink, Lock, Star, Sliders 
 } from "lucide-react";
 import { WebIO } from "@gltf-transform/core";
 import { KHRMaterialsUnlit } from "@gltf-transform/extensions";
@@ -269,8 +269,15 @@ export default function CortaLaFrutaAdminPage() {
           }
         }
 
-        // Regular menu products (filter out cup builder config from catalog list)
-        const regularProducts = data.filter((i: any) => i.id !== "cup-builder-config");
+        // Regular menu products (filter out cup builder config & reviews config from catalog list)
+        const regularProducts = data.filter((i: any) => 
+          i.id !== "cup-builder-config" && 
+          i.id !== "corta-la-fruta-reviews" &&
+          !i.id.includes("config") &&
+          !i.id.includes("review") &&
+          i.category !== "Configuracion" &&
+          i.category !== "Reseñas"
+        );
         const mappedItems: MenuItem[] = regularProducts.map((item: any) => ({
           ...item,
           glburl: item.glburl || null,
@@ -904,7 +911,7 @@ export default function CortaLaFrutaAdminPage() {
         </div>
 
         {/* Admin Navigation Tabs */}
-        <div className="flex items-center gap-2 mb-8 bg-zinc-200/60 p-1.5 rounded-2xl w-fit">
+        <div className="flex items-center gap-2 mb-8 bg-zinc-200/60 p-1.5 rounded-2xl w-fit flex-wrap">
           <button
             onClick={() => setActiveAdminTab("menu")}
             className={`px-4 py-2.5 rounded-xl text-xs font-bold transition-all flex items-center gap-2 ${
@@ -930,7 +937,7 @@ export default function CortaLaFrutaAdminPage() {
             <span className={`text-[10px] font-mono px-2 py-0.5 rounded-full ${
               activeAdminTab === "cup-builder" ? "bg-white/20 text-white" : "bg-rose-100 text-rose-700 font-bold"
             }`}>
-              4 Pasos
+              Activo
             </span>
           </button>
         </div>

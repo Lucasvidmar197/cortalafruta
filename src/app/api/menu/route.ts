@@ -9,12 +9,21 @@ export async function GET() {
     if (error) throw error;
     
     // Mapear los nombres de columnas de postgres a la interfaz del frontend
-    const formattedData = data.map(item => ({
-      ...item,
-      glbUrl: item.glburl,
-      usdzUrl: item.usdzurl,
-      imageUrls: item.image_urls || [],
-    }));
+    const formattedData = (data || [])
+      .filter(item => 
+        item.id !== 'cup-builder-config' && 
+        item.id !== 'corta-la-fruta-reviews' &&
+        !item.id.includes('config') &&
+        !item.id.includes('review') &&
+        item.category !== 'Configuracion' &&
+        item.category !== 'Reseñas'
+      )
+      .map(item => ({
+        ...item,
+        glbUrl: item.glburl,
+        usdzUrl: item.usdzurl,
+        imageUrls: item.image_urls || [],
+      }));
 
     return NextResponse.json(formattedData);
   } catch (error) {
