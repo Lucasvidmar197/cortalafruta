@@ -136,7 +136,9 @@ interface CartItem {
     step1Fruit: string;
     step2Base?: string;
     step3Fruit: string;
-    step4Toppings: string[];
+    step4Base?: string;
+    step5Toppings: string[];
+    step4Toppings?: string[];
   };
 }
 
@@ -754,15 +756,21 @@ export default function CortaLaFrutaPublicPage() {
   const [isAboutOpen, setIsAboutOpen] = useState<boolean>(false);
   const [isAboutHighlighted, setIsAboutHighlighted] = useState<boolean>(false);
 
+  // Exit Confirmation Modal State & Navigation History Traps
+  const [showExitConfirmModal, setShowExitConfirmModal] = useState<boolean>(false);
+  const isExitingRef = useRef<boolean>(false);
+  const isCheckingOutRef = useRef<boolean>(false);
+
   // Cup Builder State (PedidosYa Multi-Size & Combo Flow)
   const [cupConfig, setCupConfig] = useState<CupBuilderConfig>(DEFAULT_CUP_BUILDER_CONFIG);
   const [isCupBuilderOpen, setIsCupBuilderOpen] = useState<boolean>(false);
   const [builderSelectedSizeId, setBuilderSelectedSizeId] = useState<string>("");
-  const [builderComboType, setBuilderComboType] = useState<"full" | "fruits_only" | null>(null);
+  const [builderComboType, setBuilderComboType] = useState<"full" | "fruits_only">("full");
   const [builderStep1Fruit, setBuilderStep1Fruit] = useState<string>("");
   const [builderStep2Base, setBuilderStep2Base] = useState<string>("");
   const [builderStep3Fruit, setBuilderStep3Fruit] = useState<string>("");
-  const [builderStep4Toppings, setBuilderStep4Toppings] = useState<string[]>([]);
+  const [builderStep4Base, setBuilderStep4Base] = useState<string>("");
+  const [builderStep5Toppings, setBuilderStep5Toppings] = useState<string[]>([]);
   const [builderNotes, setBuilderNotes] = useState<string>("");
   const [builderQuantity, setBuilderQuantity] = useState<number>(1);
   const [openSections, setOpenSections] = useState<Record<string, boolean>>({
@@ -772,12 +780,13 @@ export default function CortaLaFrutaPublicPage() {
     step2: false,
     step3: false,
     step4: false,
+    step5: false,
   });
 
   const safeSizes: CupSizeOption[] = (cupConfig?.sizes && cupConfig.sizes.length > 0) ? cupConfig.sizes : DEFAULT_CUP_BUILDER_CONFIG.sizes;
   const currentSelectedSize: CupSizeOption | null = safeSizes.find(s => s.id === builderSelectedSizeId) || null;
   const currentEffectiveUnitPrice = currentSelectedSize
-    ? (builderComboType === "fruits_only" ? currentSelectedSize.fruitsOnlyPrice : (builderComboType === "full" ? currentSelectedSize.fullComboPrice : currentSelectedSize.fruitsOnlyPrice))
+    ? (builderComboType === "fruits_only" ? currentSelectedSize.fruitsOnlyPrice : currentSelectedSize.fullComboPrice)
     : (safeSizes[0]?.fruitsOnlyPrice || 7500);
 
   const toggleSection = (sectionKey: string) => {
@@ -789,11 +798,12 @@ export default function CortaLaFrutaPublicPage() {
 
   const openCupBuilderForSize = (sizeId?: string) => {
     setBuilderSelectedSizeId(sizeId || "");
-    setBuilderComboType(null);
+    setBuilderComboType("full");
     setBuilderStep1Fruit("");
     setBuilderStep2Base("");
     setBuilderStep3Fruit("");
-    setBuilderStep4Toppings([]);
+    setBuilderStep4Base("");
+    setBuilderStep5Toppings([]);
     setBuilderNotes("");
     setBuilderQuantity(1);
     setOpenSections({
@@ -803,17 +813,19 @@ export default function CortaLaFrutaPublicPage() {
       step2: false,
       step3: false,
       step4: false,
+      step5: false,
     });
     setIsCupBuilderOpen(true);
   };
 
   const resetCupBuilder = () => {
     setBuilderSelectedSizeId("");
-    setBuilderComboType(null);
+    setBuilderComboType("full");
     setBuilderStep1Fruit("");
     setBuilderStep2Base("");
     setBuilderStep3Fruit("");
-    setBuilderStep4Toppings([]);
+    setBuilderStep4Base("");
+    setBuilderStep5Toppings([]);
     setBuilderNotes("");
     setBuilderQuantity(1);
     setOpenSections({
@@ -823,11 +835,12 @@ export default function CortaLaFrutaPublicPage() {
       step2: false,
       step3: false,
       step4: false,
+      step5: false,
     });
   };
 
   const handleToggleTopping = (topName: string) => {
-    setBuilderStep4Toppings(prev => 
+    setBuilderStep5Toppings(prev => 
       prev.includes(topName) ? prev.filter(t => t !== topName) : [...prev, topName]
     );
   };
@@ -836,15 +849,15 @@ export default function CortaLaFrutaPublicPage() {
     if (!currentSelectedSize) return;
     if (!builderComboType) return;
     if (!builderStep1Fruit || !builderStep3Fruit) return;
-    if (builderComboType === "full" && !builderStep2Base) return;
+    if (builderComboType === "full" && (!builderStep2Base || !builderStep4Base)) return;
 
-    const toppingsList = builderStep4Toppings.length > 0 ? builderStep4Toppings.join(", ") : "Sin toppings adicionales";
+    const toppingsList = builderStep5Toppings.length > 0 ? builderStep5Toppings.join(", ") : "Sin toppings adicionales";
 
     const customProduct: Product = {
       id: `custom-combo-${Date.now()}`,
       name: `${currentSelectedSize.name} (${builderComboType === "full" ? "Completo" : "Solo Frutas"})`,
       description: builderComboType === "full"
-        ? `1ª Fruta: ${builderStep1Fruit} | Yogur: ${builderStep2Base} | 2ª Fruta: ${builderStep3Fruit} | Toppings: ${toppingsList}`
+        ? `1ª Fruta: ${builderStep1Fruit} | 1er Yogur: ${builderStep2Base} | 2ª Fruta: ${builderStep3Fruit} | 2º Yogur: ${builderStep4Base} | Toppings: ${toppingsList}`
         : `1ª Fruta: ${builderStep1Fruit} | 2ª Fruta: ${builderStep3Fruit} (Solo Frutas)`,
       price: currentEffectiveUnitPrice,
       promoPrice: null,
@@ -866,7 +879,8 @@ export default function CortaLaFrutaPublicPage() {
         step1Fruit: builderStep1Fruit,
         step2Base: builderComboType === "full" ? builderStep2Base : undefined,
         step3Fruit: builderStep3Fruit,
-        step4Toppings: builderComboType === "full" ? builderStep4Toppings : [],
+        step4Base: builderComboType === "full" ? builderStep4Base : undefined,
+        step5Toppings: builderComboType === "full" ? builderStep5Toppings : [],
       }
     };
 
@@ -1051,6 +1065,129 @@ export default function CortaLaFrutaPublicPage() {
   useEffect(() => {
     setCurrentPage(1);
   }, [activeCategory]);
+
+  // Reference object keeping live state for back button popstate listener
+  const modalsRef = useRef({
+    selectedProduct: null as Product | null,
+    active3DModal: null as Product | null,
+    isCupBuilderOpen: false,
+    isCartOpen: false,
+    showExitConfirmModal: false,
+  });
+
+  useEffect(() => {
+    modalsRef.current = {
+      selectedProduct,
+      active3DModal,
+      isCupBuilderOpen,
+      isCartOpen,
+      showExitConfirmModal,
+    };
+  }, [selectedProduct, active3DModal, isCupBuilderOpen, isCartOpen, showExitConfirmModal]);
+
+  const handleStay = () => {
+    setShowExitConfirmModal(false);
+    try {
+      window.history.pushState({ cortalafruta: "root" }, "");
+    } catch {}
+  };
+
+  const handleExitSite = () => {
+    isExitingRef.current = true;
+    setShowExitConfirmModal(false);
+    window.history.back();
+    setTimeout(() => {
+      try {
+        window.close();
+      } catch {}
+    }, 350);
+  };
+
+  // Intercept Back button navigation on Mobile & beforeunload confirmation
+  useEffect(() => {
+    try {
+      window.history.pushState({ cortalafruta: "root" }, "");
+    } catch (err) {
+      console.warn("No se pudo registrar estado en historial:", err);
+    }
+
+    const handlePopState = () => {
+      if (isExitingRef.current) return;
+
+      // 1. If Exit Confirm Modal is already open and back is pressed again, proceed to exit
+      if (modalsRef.current.showExitConfirmModal) {
+        isExitingRef.current = true;
+        setShowExitConfirmModal(false);
+        window.history.back();
+        return;
+      }
+
+      // 2. If any overlay modal is open, close it and maintain the history buffer
+      if (modalsRef.current.selectedProduct) {
+        setSelectedProduct(null);
+        try {
+          window.history.pushState({ cortalafruta: "root" }, "");
+        } catch {}
+        return;
+      }
+
+      if (modalsRef.current.active3DModal) {
+        setActive3DModal(null);
+        try {
+          window.history.pushState({ cortalafruta: "root" }, "");
+        } catch {}
+        return;
+      }
+
+      if (modalsRef.current.isCupBuilderOpen) {
+        setIsCupBuilderOpen(false);
+        try {
+          window.history.pushState({ cortalafruta: "root" }, "");
+        } catch {}
+        return;
+      }
+
+      if (modalsRef.current.isCartOpen) {
+        setIsCartOpen(false);
+        try {
+          window.history.pushState({ cortalafruta: "root" }, "");
+        } catch {}
+        return;
+      }
+
+      // 3. Root screen: User tapped phone's Back button -> Show Exit Confirm Modal!
+      setShowExitConfirmModal(true);
+    };
+
+    const handleBeforeUnload = (e: BeforeUnloadEvent) => {
+      if (isCheckingOutRef.current || isExitingRef.current) {
+        return;
+      }
+      e.preventDefault();
+      e.returnValue = "";
+      return "";
+    };
+
+    window.addEventListener("popstate", handlePopState);
+    window.addEventListener("beforeunload", handleBeforeUnload);
+
+    return () => {
+      window.removeEventListener("popstate", handlePopState);
+      window.removeEventListener("beforeunload", handleBeforeUnload);
+    };
+  }, []);
+
+  // Close Exit Confirm Modal on Escape key
+  useEffect(() => {
+    if (!showExitConfirmModal) return;
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        handleStay();
+      }
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [showExitConfirmModal]);
 
   // Single Custom Cup product item (with "Desde" starting price of the smallest size)
   const minCupPrice = safeSizes.length > 0
@@ -1254,6 +1391,11 @@ export default function CortaLaFrutaPublicPage() {
   const handleWhatsAppCheckout = () => {
     if (cart.length === 0) return;
 
+    isCheckingOutRef.current = true;
+    setTimeout(() => {
+      isCheckingOutRef.current = false;
+    }, 4000);
+
     let message = `*Hola Corta la Fruta!* 🍓\nQuisiera realizar el siguiente pedido:\n\n`;
     
     cart.forEach(item => {
@@ -1267,11 +1409,15 @@ export default function CortaLaFrutaPublicPage() {
         message += `   ↳ _Presentación: ${item.customDetails.sizeName} (${item.customDetails.comboType === "full" ? "Completo: Frutas + Yogur + Toppings" : "Solo Frutas"})_\n`;
         message += `   ↳ _1ª Fruta: ${item.customDetails.step1Fruit}_\n`;
         if (item.customDetails.comboType === "full" && item.customDetails.step2Base) {
-          message += `   ↳ _Yogur/Crema: ${item.customDetails.step2Base}_\n`;
+          message += `   ↳ _1er Yogur/Crema: ${item.customDetails.step2Base}_\n`;
         }
         message += `   ↳ _2ª Fruta: ${item.customDetails.step3Fruit}_\n`;
-        if (item.customDetails.comboType === "full" && item.customDetails.step4Toppings && item.customDetails.step4Toppings.length > 0) {
-          message += `   ↳ _Toppings/Salsas: ${item.customDetails.step4Toppings.join(", ")}_\n`;
+        if (item.customDetails.comboType === "full" && item.customDetails.step4Base) {
+          message += `   ↳ _2º Yogur/Crema: ${item.customDetails.step4Base}_\n`;
+        }
+        const toppingsArr = item.customDetails.step5Toppings || item.customDetails.step4Toppings;
+        if (item.customDetails.comboType === "full" && toppingsArr && toppingsArr.length > 0) {
+          message += `   ↳ _Toppings/Salsas: ${toppingsArr.join(", ")}_\n`;
         }
       }
       if (item.notes && item.notes.trim()) {
@@ -1537,26 +1683,27 @@ export default function CortaLaFrutaPublicPage() {
         ) : activeCategory === "all" || activeCategory === "armar-vaso" ? (
           /* PAGINATED GRID FOR ALL PRODUCTS / ARMAR VASO */
           <div className="space-y-6 sm:space-y-8">
-            <div className="flex items-center justify-between border-b border-zinc-200/80 pb-3">
-              <div className="flex items-center gap-3 sm:gap-4">
-                {/* Organic Floating Cup - No box, pure transparent image */}
+            <div className="flex items-center justify-between border-b border-zinc-200/80 pb-4">
+              <div className="flex items-center gap-3 sm:gap-5 min-w-0">
+                {/* Organic Floating Cup - Enlarged size */}
                 <div 
                   onClick={() => openCupBuilderForSize("")}
-                  className="relative w-12 h-16 sm:w-14 sm:h-20 shrink-0 flex items-center justify-center cursor-pointer active:scale-95 transition-transform touch-manipulation"
+                  className="relative w-20 h-28 sm:w-28 sm:h-36 md:w-32 md:h-40 shrink-0 flex items-center justify-center cursor-pointer active:scale-95 hover:scale-105 transition-transform touch-manipulation"
+                  title="¡Hacé clic para armar tu vaso a medida!"
                 >
                   <img 
                     src={FRUIT_CUP_IMAGE_URL} 
                     alt="Vaso Corta la Fruta" 
-                    className="w-full h-full object-contain animate-float drop-shadow-md"
+                    className="w-full h-full object-contain animate-float drop-shadow-xl"
                   />
-                  <div className="absolute -bottom-1 w-9 sm:w-11 h-1.5 bg-black/20 rounded-full blur-[1.5px] animate-float-shadow pointer-events-none" />
+                  <div className="absolute -bottom-1 sm:-bottom-2 w-14 sm:w-20 md:w-24 h-2 sm:h-2.5 bg-black/20 rounded-full blur-[2.5px] animate-float-shadow pointer-events-none" />
                 </div>
 
-                <div>
-                  <h3 className="text-xl md:text-2xl font-extrabold text-zinc-900 tracking-tight">
+                <div className="min-w-0">
+                  <h3 className="text-lg sm:text-2xl md:text-3xl font-extrabold text-zinc-900 tracking-tight leading-tight">
                     {activeCategory === "armar-vaso" ? (cupConfig.name || "Armá tu Vaso") : `Todos los Productos (${allFlatProducts.length})`}
                   </h3>
-                  <p className="text-xs text-zinc-500 font-medium mt-0.5">
+                  <p className="text-xs sm:text-sm text-zinc-500 font-medium mt-1">
                     {activeCategory === "armar-vaso"
                       ? "Armá tu vaso con tus frutas, bases y toppings a elección"
                       : `Mostrando ${paginatedFlatProducts.length} de ${allFlatProducts.length} productos (Página ${currentPage} de ${totalPages || 1})`}
@@ -1564,23 +1711,27 @@ export default function CortaLaFrutaPublicPage() {
                 </div>
               </div>
 
-              {/* Top Page Navigator */}
+              {/* Top Page Navigator (compact on mobile, full text on desktop) */}
               {totalPages > 1 && (
-                <div className="flex items-center gap-1.5 text-xs font-semibold">
+                <div className="flex items-center gap-1 sm:gap-1.5 text-xs font-semibold shrink-0">
                   <button
                     disabled={currentPage === 1}
                     onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))}
-                    className="px-3 py-1.5 rounded-lg border border-zinc-200 bg-white hover:bg-zinc-100 disabled:opacity-40 transition-colors"
+                    className="p-1.5 sm:px-3 sm:py-1.5 rounded-lg border border-zinc-200 bg-white hover:bg-zinc-100 disabled:opacity-40 transition-colors"
+                    title="Página anterior"
                   >
-                    Anterior
+                    <ChevronLeft size={14} className="sm:hidden" />
+                    <span className="hidden sm:inline">Anterior</span>
                   </button>
-                  <span className="px-2 font-mono">{currentPage} / {totalPages}</span>
+                  <span className="px-1.5 sm:px-2 font-mono text-[11px] sm:text-xs text-zinc-600">{currentPage} / {totalPages}</span>
                   <button
                     disabled={currentPage === totalPages}
                     onClick={() => setCurrentPage(prev => Math.min(prev + 1, totalPages))}
-                    className="px-3 py-1.5 rounded-lg border border-zinc-200 bg-white hover:bg-zinc-100 disabled:opacity-40 transition-colors"
+                    className="p-1.5 sm:px-3 sm:py-1.5 rounded-lg border border-zinc-200 bg-white hover:bg-zinc-100 disabled:opacity-40 transition-colors"
+                    title="Página siguiente"
                   >
-                    Siguiente
+                    <ChevronRight size={14} className="sm:hidden" />
+                    <span className="hidden sm:inline">Siguiente</span>
                   </button>
                 </div>
               )}
@@ -2407,11 +2558,14 @@ export default function CortaLaFrutaPublicPage() {
                             <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-2 gap-y-0.5 text-[11px]">
                               <div><span className="font-bold text-rose-700">1ª Fruta:</span> {item.customDetails.step1Fruit}</div>
                               {item.customDetails.comboType === "full" && item.customDetails.step2Base && (
-                                <div><span className="font-bold text-blue-700">Yogur:</span> {item.customDetails.step2Base}</div>
+                                <div><span className="font-bold text-blue-700">1er Yogur:</span> {item.customDetails.step2Base}</div>
                               )}
                               <div><span className="font-bold text-emerald-700">2ª Fruta:</span> {item.customDetails.step3Fruit}</div>
+                              {item.customDetails.comboType === "full" && item.customDetails.step4Base && (
+                                <div><span className="font-bold text-purple-700">2º Yogur:</span> {item.customDetails.step4Base}</div>
+                              )}
                               {item.customDetails.comboType === "full" && (
-                                <div><span className="font-bold text-amber-700">Toppings:</span> {item.customDetails.step4Toppings.join(", ") || "Sin toppings"}</div>
+                                <div><span className="font-bold text-amber-700">Toppings:</span> {((item.customDetails.step5Toppings || item.customDetails.step4Toppings || [])).join(", ") || "Sin toppings"}</div>
                               )}
                             </div>
                           </div>
@@ -3193,8 +3347,8 @@ export default function CortaLaFrutaPublicPage() {
                 )}
               </div>
 
-              {/* SECTION: YOGUR O CREMA (Solo si comboType === 'full') */}
-              {builderComboType === "full" && (
+              {/* SECTION: 1er YOGUR O CREMA (Solo si comboType !== 'fruits_only') */}
+              {builderComboType !== "fruits_only" && (
                 <div className="py-4">
                   <div 
                     onClick={() => toggleSection("step2")}
@@ -3202,7 +3356,7 @@ export default function CortaLaFrutaPublicPage() {
                   >
                     <div>
                       <h4 className="font-bold text-base text-zinc-900">
-                        4. Yogur o Crema
+                        4. Primer Yogur o Crema
                       </h4>
                       <p className="text-xs text-zinc-500 mt-0.5">
                         {builderStep2Base ? `Seleccionado: ${builderStep2Base}` : "Elige 1 opción"}
@@ -3227,10 +3381,10 @@ export default function CortaLaFrutaPublicPage() {
                         const isSelected = builderStep2Base === base.name;
                         return (
                           <div
-                            key={base.id}
+                            key={`base-1-${base.id}`}
                             onClick={() => {
                               setBuilderStep2Base(base.name);
-                              setOpenSections({ size: false, comboType: false, step1: false, step2: false, step3: true, step4: false });
+                              setOpenSections({ size: false, comboType: false, step1: false, step2: false, step3: true, step4: false, step5: false });
                             }}
                             className="py-3.5 px-1.5 flex items-center justify-between cursor-pointer hover:bg-zinc-50 active:bg-zinc-100 transition-colors select-none touch-manipulation"
                           >
@@ -3264,7 +3418,7 @@ export default function CortaLaFrutaPublicPage() {
                 </div>
               )}
 
-              {/* SECTION: 2ª FRUTA (SUPERIOR) */}
+              {/* SECTION: 2ª FRUTA (SUPERIOR / CAPA MEDIA) */}
               <div className="py-4">
                 <div 
                   onClick={() => toggleSection("step3")}
@@ -3272,7 +3426,7 @@ export default function CortaLaFrutaPublicPage() {
                 >
                   <div>
                     <h4 className="font-bold text-base text-zinc-900">
-                      {builderComboType === "full" ? "5. Segunda Fruta (Superior)" : "4. Segunda Fruta"}
+                      {builderComboType === "fruits_only" ? "4. Segunda Fruta" : "5. Segunda Fruta"}
                     </h4>
                     <p className="text-xs text-zinc-500 mt-0.5">
                       {builderStep3Fruit ? `Seleccionado: ${builderStep3Fruit}` : "Elige 1 opción"}
@@ -3300,10 +3454,10 @@ export default function CortaLaFrutaPublicPage() {
                           key={fruit.id}
                           onClick={() => {
                             setBuilderStep3Fruit(fruit.name);
-                            if (builderComboType === "full") {
-                              setOpenSections({ size: false, comboType: false, step1: false, step2: false, step3: false, step4: true });
+                            if (builderComboType === "fruits_only") {
+                              setOpenSections({ size: false, comboType: false, step1: false, step2: false, step3: false, step4: false, step5: false });
                             } else {
-                              setOpenSections({ size: false, comboType: false, step1: false, step2: false, step3: false, step4: false });
+                              setOpenSections({ size: false, comboType: false, step1: false, step2: false, step3: false, step4: true, step5: false });
                             }
                           }}
                           className="py-3.5 px-1.5 flex items-center justify-between cursor-pointer hover:bg-zinc-50 active:bg-zinc-100 transition-colors select-none touch-manipulation"
@@ -3334,8 +3488,8 @@ export default function CortaLaFrutaPublicPage() {
                 )}
               </div>
 
-              {/* SECTION: TOPPINGS & SALSAS (Solo si comboType === 'full') */}
-              {builderComboType === "full" && (
+              {/* SECTION: 2º YOGUR O CREMA (Solo si comboType !== 'fruits_only') */}
+              {builderComboType !== "fruits_only" && (
                 <div className="py-4">
                   <div 
                     onClick={() => toggleSection("step4")}
@@ -3343,18 +3497,16 @@ export default function CortaLaFrutaPublicPage() {
                   >
                     <div>
                       <h4 className="font-bold text-base text-zinc-900">
-                        6. Toppings y Salsas
+                        6. Segundo Yogur o Crema
                       </h4>
                       <p className="text-xs text-zinc-500 mt-0.5">
-                        {builderStep4Toppings.length > 0 
-                          ? `Seleccionados: ${builderStep4Toppings.join(", ")}` 
-                          : "Elige las opciones que desees"}
+                        {builderStep4Base ? `Seleccionado: ${builderStep4Base}` : "Elige 1 opción (podés repetir o elegir otro)"}
                       </p>
                     </div>
 
                     <div className="flex items-center gap-2">
                       <span className="bg-zinc-100 text-zinc-700 text-[11px] font-semibold px-2.5 py-0.5 rounded-full">
-                        Opcional
+                        Requerido
                       </span>
                       {openSections.step4 ? (
                         <ChevronUp size={20} className="text-zinc-700" />
@@ -3366,8 +3518,81 @@ export default function CortaLaFrutaPublicPage() {
 
                   {openSections.step4 && (
                     <div className="pt-2 divide-y divide-zinc-100 animate-in fade-in duration-150">
+                      {cupConfig.bases.filter(b => b.available).map((base, idx) => {
+                        const isSelected = builderStep4Base === base.name;
+                        return (
+                          <div
+                            key={`base-2-${base.id}`}
+                            onClick={() => {
+                              setBuilderStep4Base(base.name);
+                              setOpenSections({ size: false, comboType: false, step1: false, step2: false, step3: false, step4: false, step5: true });
+                            }}
+                            className="py-3.5 px-1.5 flex items-center justify-between cursor-pointer hover:bg-zinc-50 active:bg-zinc-100 transition-colors select-none touch-manipulation"
+                          >
+                            <div>
+                              {idx === 0 && (
+                                <span className="text-[10px] text-zinc-400 font-medium block leading-none mb-1">
+                                  Más popular
+                                </span>
+                              )}
+                              <span className="text-sm font-medium text-zinc-900 flex items-center gap-1.5">
+                                <span>{base.emoji || "🥣"}</span>
+                                <span>{base.name}</span>
+                              </span>
+                              {base.description && (
+                                <span className="text-xs text-zinc-400 block mt-0.5">{base.description}</span>
+                              )}
+                            </div>
+
+                            <div className={`w-6 h-6 rounded-lg border-2 flex items-center justify-center transition-all ${
+                              isSelected 
+                                ? "bg-[#E2004B] border-[#E2004B] text-white" 
+                                : "border-zinc-300 bg-white"
+                            }`}>
+                              {isSelected && <Check size={14} className="stroke-[3]" />}
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* SECTION: TOPPINGS & SALSAS (Solo si comboType !== 'fruits_only') */}
+              {builderComboType !== "fruits_only" && (
+                <div className="py-4">
+                  <div 
+                    onClick={() => toggleSection("step5")}
+                    className="flex items-start justify-between cursor-pointer select-none mb-1 touch-manipulation"
+                  >
+                    <div>
+                      <h4 className="font-bold text-base text-zinc-900">
+                        7. Toppings y Salsas
+                      </h4>
+                      <p className="text-xs text-zinc-500 mt-0.5">
+                        {builderStep5Toppings.length > 0 
+                          ? `Seleccionados: ${builderStep5Toppings.join(", ")}` 
+                          : "Elige las opciones que desees"}
+                      </p>
+                    </div>
+
+                    <div className="flex items-center gap-2">
+                      <span className="bg-zinc-100 text-zinc-700 text-[11px] font-semibold px-2.5 py-0.5 rounded-full">
+                        Opcional
+                      </span>
+                      {openSections.step5 ? (
+                        <ChevronUp size={20} className="text-zinc-700" />
+                      ) : (
+                        <ChevronDown size={20} className="text-zinc-700" />
+                      )}
+                    </div>
+                  </div>
+
+                  {openSections.step5 && (
+                    <div className="pt-2 divide-y divide-zinc-100 animate-in fade-in duration-150">
                       {cupConfig.toppings.filter(t => t.available).map((top) => {
-                        const isChecked = builderStep4Toppings.includes(top.name);
+                        const isChecked = builderStep5Toppings.includes(top.name);
                         return (
                           <div
                             key={top.id}
@@ -3447,7 +3672,7 @@ export default function CortaLaFrutaPublicPage() {
                 <button
                   type="button"
                   onClick={handleAddCustomCupToCart}
-                  disabled={!currentSelectedSize || !builderComboType || !builderStep1Fruit || !builderStep3Fruit || (builderComboType === "full" && !builderStep2Base)}
+                  disabled={!currentSelectedSize || !builderComboType || !builderStep1Fruit || !builderStep3Fruit || (builderComboType === "full" && (!builderStep2Base || !builderStep4Base))}
                   className="flex-1 min-h-[48px] bg-[#E2004B] hover:bg-[#c70041] disabled:opacity-40 disabled:pointer-events-none text-white font-bold text-base py-3 px-6 rounded-full transition-all shadow-xs active:scale-98 text-center flex items-center justify-center touch-manipulation cursor-pointer"
                 >
                   Agregar
@@ -3461,6 +3686,79 @@ export default function CortaLaFrutaPublicPage() {
 
       {/* FLOATING ANIMATED FRUIT CUP MASCOT WIDGET */}
       <FloatingFruitCupWidget onOpenAbout={handleOpenAbout} />
+
+      {/* MODAL DE CONFIRMACIÓN AL SALIR (INTERCEPTOR DE BOTÓN ATRÁS EN MÓVIL Y NAVEGADORES) */}
+      {showExitConfirmModal && (
+        <div 
+          className="fixed inset-0 z-[99999] bg-black/60 backdrop-blur-xs flex items-center justify-center p-4 animate-in fade-in duration-200"
+          onClick={handleStay}
+        >
+          <div 
+            onClick={(e) => e.stopPropagation()}
+            className="bg-white w-full max-w-sm rounded-3xl p-5 sm:p-6 shadow-2xl border border-zinc-100 text-center relative overflow-hidden animate-in zoom-in-95 duration-200"
+          >
+            {/* Botón de cerrar X */}
+            <button
+              type="button"
+              onClick={handleStay}
+              className="absolute top-3.5 right-3.5 w-8 h-8 rounded-full bg-zinc-100 hover:bg-zinc-200 text-zinc-500 hover:text-zinc-800 flex items-center justify-center transition-colors cursor-pointer touch-manipulation"
+              aria-label="Cerrar ventana y quedarse"
+            >
+              <X size={18} />
+            </button>
+
+            {/* Ícono de alerta */}
+            <div className="w-14 h-14 rounded-2xl bg-amber-50 border border-amber-200/80 text-amber-600 flex items-center justify-center mx-auto mb-3.5 shadow-2xs">
+              <AlertCircle size={28} className="stroke-[2.2]" />
+            </div>
+
+            {/* Título estándar */}
+            <h3 className="text-lg sm:text-xl font-black text-zinc-900 leading-snug">
+              ¿Seguro que quieres salir?
+            </h3>
+
+            {/* Texto clásico de todas las páginas */}
+            <p className="text-zinc-600 text-xs sm:text-sm mt-1.5 leading-relaxed">
+              Es posible que los cambios que hayas hecho no se guarden.
+            </p>
+
+            {/* Aviso especial si el usuario tiene productos en el pedido */}
+            {totalCartCount > 0 && (
+              <div className="mt-4 p-3 rounded-2xl bg-rose-50 border border-rose-200/70 text-left flex items-start gap-2.5">
+                <div className="w-8 h-8 rounded-xl bg-rose-100 text-rose-600 flex items-center justify-center shrink-0 mt-0.5">
+                  <ShoppingBag size={16} />
+                </div>
+                <div className="flex-1">
+                  <p className="font-bold text-xs text-rose-950">
+                    Tenés {totalCartCount} {totalCartCount === 1 ? "producto" : "productos"} en tu pedido
+                  </p>
+                  <p className="text-[11px] text-rose-700 mt-0.5">
+                    Total: ${totalCartPrice.toLocaleString("es-AR")} • Si salís ahora, se perderá tu selección.
+                  </p>
+                </div>
+              </div>
+            )}
+
+            {/* Botones de acción */}
+            <div className="mt-5 flex flex-col gap-2">
+              <button
+                type="button"
+                onClick={handleStay}
+                className="w-full py-3 px-4 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-sm shadow-md shadow-emerald-600/20 active:scale-[0.98] transition-all flex items-center justify-center gap-2 cursor-pointer touch-manipulation"
+              >
+                <span>Quedarme en la página</span>
+              </button>
+              <button
+                type="button"
+                onClick={handleExitSite}
+                className="w-full py-2.5 px-4 rounded-xl bg-zinc-100 hover:bg-zinc-200 text-zinc-600 hover:text-zinc-900 font-semibold text-xs active:scale-[0.98] transition-all cursor-pointer touch-manipulation"
+              >
+                <span>Salir del sitio</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </main>
   );
 }
