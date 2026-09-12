@@ -239,6 +239,7 @@ export default function CortaLaFrutaAdminPage() {
     imageUrl: string;
     glbUrl: string;
     has3D: boolean;
+    scale?: number;
   } | null>(null);
 
   // File upload states inside product modal
@@ -725,6 +726,7 @@ export default function CortaLaFrutaAdminPage() {
         imageUrl: item.image_urls?.[0] || "",
         glbUrl: item.glburl || "",
         has3D: !!item.glburl,
+        scale: item.scale !== undefined && item.scale !== null ? item.scale : 1,
       });
     } else {
       setEditingProduct({
@@ -738,6 +740,7 @@ export default function CortaLaFrutaAdminPage() {
         imageUrl: "",
         glbUrl: "",
         has3D: false,
+        scale: 1,
       });
     }
   };
@@ -816,6 +819,7 @@ export default function CortaLaFrutaAdminPage() {
       image_urls: editingProduct.imageUrl.trim() ? [editingProduct.imageUrl.trim()] : [],
       usdzurl: promoVal ? String(promoVal) : null,
       promo_price: promoVal,
+      scale: editingProduct.scale ? Number(editingProduct.scale) : 1,
     };
 
     try {
@@ -848,7 +852,6 @@ export default function CortaLaFrutaAdminPage() {
           .insert({
             id: newId,
             ...payload,
-            scale: 1,
           });
 
         if (error && error.code === "PGRST204") {
@@ -858,14 +861,13 @@ export default function CortaLaFrutaAdminPage() {
             .insert({
               id: newId,
               ...payload,
-              scale: 1,
             });
           error = retry.error;
         }
 
         if (error) throw error;
 
-        setItems([...items, { id: newId, ...payload, scale: 1, promo_price: promoVal }]);
+        setItems([...items, { id: newId, ...payload, promo_price: promoVal }]);
         showToast("Nuevo producto creado en Supabase");
       }
 
@@ -2517,6 +2519,71 @@ export default function CortaLaFrutaAdminPage() {
                         className="flex-1 border border-zinc-300 focus:border-emerald-600 rounded-xl px-3 py-2 outline-none font-mono text-[11px] bg-white"
                       />
                     </div>
+
+                    {editingProduct.glbUrl && (
+                      <div className="space-y-2 pt-2 border-t border-emerald-200/60">
+                        {/* Live 3D Preview in Admin */}
+                        <div className="relative h-44 w-full bg-zinc-50 rounded-xl border border-emerald-200 overflow-hidden flex items-center justify-center">
+                          {React.createElement('model-viewer', {
+                            src: editingProduct.glbUrl,
+                            alt: "Vista previa 3D",
+                            ar: true,
+                            'ar-modes': "scene-viewer webxr quick-look",
+                            'ar-scale': "fixed",
+                            scale: `${editingProduct.scale || 1} ${editingProduct.scale || 1} ${editingProduct.scale || 1}`,
+                            'camera-controls': true,
+                            'auto-rotate': true,
+                            'shadow-intensity': "1.5",
+                            'exposure': "0.7",
+                            'environment-image': "neutral",
+                            style: { width: "100%", height: "100%", backgroundColor: "transparent" }
+                          })}
+                        </div>
+
+                        {/* Real-World Scale Multiplier */}
+                        <div className="bg-white p-3 rounded-xl border border-emerald-200 space-y-1.5">
+                          <div className="flex items-center justify-between">
+                            <label className="text-xs font-bold text-zinc-800 flex items-center gap-1.5">
+                              <Sliders size={14} className="text-emerald-700" />
+                              <span>Escala del Modelo (1.0 = 100% Escala Real)</span>
+                            </label>
+                            <span className="text-xs font-mono font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-md border border-emerald-200">
+                              {(editingProduct.scale ?? 1).toFixed(2)}x
+                            </span>
+                          </div>
+                          <p className="text-[10px] text-zinc-500">
+                            Ajustá la escala para calibrar el tamaño exacto en Realidad Aumentada (AR) en mesa o plato.
+                          </p>
+                          <div className="flex items-center gap-2 pt-1">
+                            <input
+                              type="range"
+                              min="0.1"
+                              max="3.0"
+                              step="0.05"
+                              value={editingProduct.scale ?? 1}
+                              onChange={(e) => setEditingProduct({ ...editingProduct, scale: parseFloat(e.target.value) || 1 })}
+                              className="flex-1 accent-emerald-600 cursor-pointer"
+                            />
+                            <input
+                              type="number"
+                              min="0.01"
+                              max="10"
+                              step="0.05"
+                              value={editingProduct.scale ?? 1}
+                              onChange={(e) => setEditingProduct({ ...editingProduct, scale: parseFloat(e.target.value) || 1 })}
+                              className="w-16 border border-zinc-300 rounded-lg px-2 py-1 text-xs font-mono text-center focus:border-emerald-600 outline-none"
+                            />
+                            <button
+                              type="button"
+                              onClick={() => setEditingProduct({ ...editingProduct, scale: 1 })}
+                              className="text-[10px] font-bold text-zinc-600 hover:text-zinc-900 px-2.5 py-1 bg-zinc-100 rounded-lg transition-colors shrink-0"
+                            >
+                              1.0x (Original)
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+                    )}
                   </div>
                 )}
               </div>

@@ -1793,9 +1793,10 @@ export default function CortaLaFrutaPublicPage() {
                             alt: product.name,
                             ar: true,
                             'ar-modes': "scene-viewer webxr quick-look",
-                            'ar-scale': "auto",
+                            'ar-scale': "fixed",
+                            'ar-placement': "floor",
                             'interaction-prompt': "none",
-                            scale: "1 1 1",
+                            scale: product.scale ? `${product.scale} ${product.scale} ${product.scale}` : "1 1 1",
                             'camera-controls': true,
                             'auto-rotate': true,
                             'disable-zoom': true,
@@ -2041,9 +2042,10 @@ export default function CortaLaFrutaPublicPage() {
                               alt: product.name,
                               ar: true,
                               'ar-modes': "scene-viewer webxr quick-look",
-                              'ar-scale': "auto",
+                              'ar-scale': "fixed",
+                              'ar-placement': "floor",
                               'interaction-prompt': "none",
-                              scale: "1 1 1",
+                              scale: product.scale ? `${product.scale} ${product.scale} ${product.scale}` : "1 1 1",
                               'camera-controls': true,
                               'auto-rotate': true,
                               'disable-zoom': true,
@@ -2194,12 +2196,13 @@ export default function CortaLaFrutaPublicPage() {
                     alt: selectedProduct.name,
                     ar: true,
                     'ar-modes': "scene-viewer webxr quick-look",
-                    'ar-scale': "auto",
+                    'ar-scale': "fixed",
+                    'ar-placement': "floor",
                     'interaction-prompt': "none",
-                    scale: "1 1 1",
+                    scale: selectedProduct.scale ? `${selectedProduct.scale} ${selectedProduct.scale} ${selectedProduct.scale}` : "1 1 1",
                     'camera-controls': true,
                     'auto-rotate': true,
-                    'disable-zoom': true,
+                    'disable-zoom': false,
                     'disable-pan': true,
                     'min-camera-orbit': "auto 0deg auto",
                     'max-camera-orbit': "auto 90deg auto",
@@ -2210,7 +2213,15 @@ export default function CortaLaFrutaPublicPage() {
                     'reveal': "auto",
                     style: { width: "100%", height: "100%", backgroundColor: "transparent" },
                     class: "w-full h-full object-contain"
-                  })}
+                  },
+                    <button
+                      slot="ar-button"
+                      className="absolute bottom-3 right-3 bg-zinc-900/90 hover:bg-black text-white text-xs font-extrabold px-3 py-2 rounded-xl shadow-lg flex items-center gap-1.5 transition-transform active:scale-95 z-20 border border-zinc-700/80 backdrop-blur-xs cursor-pointer"
+                    >
+                      <Box size={14} className="text-emerald-400" />
+                      <span>Ver en mi mesa (Escala Real 1:1)</span>
+                    </button>
+                  )}
                 </div>
               ) : (
                 <img 
@@ -2359,12 +2370,13 @@ export default function CortaLaFrutaPublicPage() {
                 alt: `Modelo 3D de ${active3DModal.name}`,
                 ar: true,
                 'ar-modes': "scene-viewer webxr quick-look",
-                'ar-scale': "auto",
+                'ar-scale': "fixed",
+                'ar-placement': "floor",
                 'interaction-prompt': "none",
                 scale: active3DModal.scale ? `${active3DModal.scale} ${active3DModal.scale} ${active3DModal.scale}` : "1 1 1",
                 'camera-controls': true,
                 'auto-rotate': true,
-                'disable-zoom': true,
+                'disable-zoom': false,
                 'disable-pan': true,
                 'min-camera-orbit': "auto 0deg auto",
                 'max-camera-orbit': "auto 90deg auto",
@@ -2378,10 +2390,10 @@ export default function CortaLaFrutaPublicPage() {
               },
                 <button
                   slot="ar-button"
-                  className="absolute bottom-3 right-3 bg-zinc-900 hover:bg-black text-white text-xs font-extrabold px-4 py-2.5 rounded-xl shadow-lg flex items-center gap-2 transition-transform active:scale-95 z-20 border border-zinc-700"
+                  className="absolute bottom-3 right-3 bg-zinc-900 hover:bg-black text-white text-xs font-extrabold px-4 py-2.5 rounded-xl shadow-lg flex items-center gap-2 transition-transform active:scale-95 z-20 border border-zinc-700 cursor-pointer"
                 >
                   <Box size={15} className="text-emerald-400" />
-                  <span>Ver en mi mesa (AR)</span>
+                  <span>Ver en mi mesa (Escala Real 1:1)</span>
                 </button>
               )}
             </div>
@@ -2489,7 +2501,7 @@ export default function CortaLaFrutaPublicPage() {
                                   src: product.glbUrl,
                                   alt: product.name,
                                   'interaction-prompt': 'none',
-                                  scale: '1 1 1',
+                                  scale: product.scale ? `${product.scale} ${product.scale} ${product.scale}` : '1 1 1',
                                   'camera-controls': false,
                                   'auto-rotate': false,
                                   'shadow-intensity': '1.5',
