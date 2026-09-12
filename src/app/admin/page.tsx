@@ -11,7 +11,7 @@ import {
 } from "lucide-react";
 import { type Coupon, DEFAULT_COUPONS } from "@/app/api/coupons/route";
 import { WebIO } from "@gltf-transform/core";
-import { KHRMaterialsUnlit } from "@gltf-transform/extensions";
+import { KHRMaterialsUnlit, ALL_EXTENSIONS } from "@gltf-transform/extensions";
 
 interface MenuItem {
   id: string;
@@ -114,7 +114,15 @@ const DEFAULT_CATEGORIES = [
 // Helper: Optimizar modelo GLB para Realidad Aumentada inyectando KHR_materials_unlit
 const processGlbUnlit = async (file: File): Promise<Blob> => {
   try {
-    const io = new WebIO().registerExtensions([KHRMaterialsUnlit]);
+    const io = new WebIO().registerExtensions(ALL_EXTENSIONS);
+    if (typeof window !== "undefined" && (window as any).MeshoptDecoder) {
+      try {
+        await (window as any).MeshoptDecoder.ready;
+        io.registerDependencies({ "meshopt.decoder": (window as any).MeshoptDecoder });
+      } catch (dErr) {
+        console.warn("No se pudo registrar decoder meshopt en gltf-transform:", dErr);
+      }
+    }
     const buffer = await file.arrayBuffer();
     const doc = await io.readBinary(new Uint8Array(buffer));
     const unlitExtension = doc.createExtension(KHRMaterialsUnlit);
@@ -267,6 +275,18 @@ export default function CortaLaFrutaAdminPage() {
     return () => {
       authListener.subscription.unsubscribe();
     };
+  }, []);
+
+  // Ensure <model-viewer> decodes meshopt-compressed 3D models seamlessly
+  useEffect(() => {
+    if (typeof window !== "undefined" && window.customElements) {
+      window.customElements.whenDefined("model-viewer").then(() => {
+        const ModelViewerElement = window.customElements.get("model-viewer") as any;
+        if (ModelViewerElement && !ModelViewerElement.meshoptDecoderLocation) {
+          ModelViewerElement.meshoptDecoderLocation = "/meshopt_decoder.js";
+        }
+      });
+    }
   }, []);
 
   // 2. Fetch menu items and Cup Builder config from Supabase when authenticated

@@ -1014,6 +1014,18 @@ export default function CortaLaFrutaPublicPage() {
     return () => clearInterval(interval);
   }, []);
 
+  // Ensure <model-viewer> decodes meshopt-compressed 3D models seamlessly
+  useEffect(() => {
+    if (typeof window !== "undefined" && window.customElements) {
+      window.customElements.whenDefined("model-viewer").then(() => {
+        const ModelViewerElement = window.customElements.get("model-viewer") as any;
+        if (ModelViewerElement && !ModelViewerElement.meshoptDecoderLocation) {
+          ModelViewerElement.meshoptDecoderLocation = "/meshopt_decoder.js";
+        }
+      });
+    }
+  }, []);
+
   // Shopping Cart States
   const [cart, setCart] = useState<CartItem[]>([]);
   const [isCartOpen, setIsCartOpen] = useState<boolean>(false);

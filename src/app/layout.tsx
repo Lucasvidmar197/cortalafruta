@@ -38,6 +38,20 @@ export default function RootLayout({
           src="https://ajax.googleapis.com/ajax/libs/model-viewer/4.0.0/model-viewer.min.js" 
           strategy="afterInteractive"
         />
+        <Script id="init-meshopt-decoder" strategy="afterInteractive">
+          {`
+            (function() {
+              if (typeof window !== 'undefined' && window.customElements) {
+                window.customElements.whenDefined('model-viewer').then(function() {
+                  var ModelViewerElement = window.customElements.get('model-viewer');
+                  if (ModelViewerElement && !ModelViewerElement.meshoptDecoderLocation) {
+                    ModelViewerElement.meshoptDecoderLocation = '/meshopt_decoder.js';
+                  }
+                });
+              }
+            })();
+          `}
+        </Script>
       </body>
     </html>
   );
