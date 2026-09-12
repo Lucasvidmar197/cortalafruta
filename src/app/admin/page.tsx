@@ -7,7 +7,7 @@ import { supabase } from "@/lib/supabase";
 import { 
   Plus, Trash2, Edit2, Save, X, ArrowLeft, Package, Layers, Box, 
   Image as ImageIcon, Upload, Loader2, LogOut, Check, Sparkles, ExternalLink, Lock, Star, Sliders,
-  Ticket, Percent, DollarSign, Calendar, Hash, Tag, AlertCircle, Copy, CheckCircle2
+  Ticket, Percent, DollarSign, Calendar, Hash, Tag, AlertCircle, Copy, CheckCircle2, Search
 } from "lucide-react";
 import { type Coupon, DEFAULT_COUPONS } from "@/app/api/coupons/route";
 import { WebIO } from "@gltf-transform/core";
@@ -104,11 +104,12 @@ export const DEFAULT_CUP_BUILDER_CONFIG: CupBuilderConfig = {
 };
 
 const DEFAULT_CATEGORIES = [
-  "Vasos de Fruta Cortada",
-  "Ensaladas de Frutas",
-  "Combinaciones con Yogur & Granola",
-  "Avena Trasnochada (Overnight Oats)",
-  "Servicio para Eventos & Reuniones"
+  "Ensaladas",
+  "Desayunos",
+  "Almuerzos",
+  "Meriendas",
+  "Opciones Keto",
+  "Eventos & Celebración"
 ];
 
 // Helper: Optimizar modelo GLB para Realidad Aumentada inyectando KHR_materials_unlit
@@ -245,6 +246,9 @@ export default function CortaLaFrutaAdminPage() {
   // File upload states inside product modal
   const [isUploadingImage, setIsUploadingImage] = useState(false);
   const [isUploadingGlb, setIsUploadingGlb] = useState(false);
+  const [isSavingProduct, setIsSavingProduct] = useState(false);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [selectedCategoryFilter, setSelectedCategoryFilter] = useState("all");
   const imageInputRef = useRef<HTMLInputElement>(null);
   const glbInputRef = useRef<HTMLInputElement>(null);
 
@@ -346,9 +350,14 @@ export default function CortaLaFrutaAdminPage() {
         }));
         setItems(mappedItems);
 
-        // Compute unique categories combining defaults and database items
-        const itemCategories = Array.from(new Set(mappedItems.map(i => i.category).filter(Boolean)));
-        const combined = Array.from(new Set([...DEFAULT_CATEGORIES, ...itemCategories])).filter(c => c !== "Armá tu Vaso");
+        // Compute unique categories combining defaults and database items (splitting comma-separated strings)
+        const itemCategories = Array.from(
+          new Set(
+            mappedItems.flatMap(i => (i.category || "").split(/[,;|]/).map((c: string) => c.trim()).filter(Boolean))
+          )
+        );
+        const combined = Array.from(new Set([...DEFAULT_CATEGORIES, ...itemCategories]))
+          .filter(c => c !== "Armá tu Vaso" && c !== "Configuracion" && c !== "Reseñas");
         setCategoriesList(combined);
       }
     } catch (err: any) {
@@ -795,7 +804,7 @@ export default function CortaLaFrutaAdminPage() {
   };
 
   const handleSaveProduct = async () => {
-    if (!editingProduct) return;
+    if (!editingProduct || isSavingProduct) return;
     if (!editingProduct.name.trim() || editingProduct.price <= 0) {
       alert("Por favor ingresá un nombre y un precio válido.");
       return;
@@ -810,6 +819,7 @@ export default function CortaLaFrutaAdminPage() {
       return;
     }
 
+    setIsSavingProduct(true);
     const payload: any = {
       name: editingProduct.name.trim(),
       description: editingProduct.description.trim(),
@@ -842,7 +852,6 @@ export default function CortaLaFrutaAdminPage() {
 
         if (error) throw error;
 
-        setItems(items.map(i => i.id === editingProduct.id ? { ...i, ...payload, promo_price: promoVal } : i));
         showToast("Producto actualizado correctamente");
       } else {
         // Insert new product
@@ -867,14 +876,16 @@ export default function CortaLaFrutaAdminPage() {
 
         if (error) throw error;
 
-        setItems([...items, { id: newId, ...payload, promo_price: promoVal }]);
         showToast("Nuevo producto creado en Supabase");
       }
 
       setEditingProduct(null);
+      await fetchMenuData();
     } catch (err: any) {
       console.error("Error al guardar producto:", err);
       alert("Error al guardar en Supabase: " + err.message);
+    } finally {
+      setIsSavingProduct(false);
     }
   };
 
@@ -895,6 +906,89 @@ export default function CortaLaFrutaAdminPage() {
       console.error("Error al eliminar producto:", err);
       alert("Error al eliminar: " + err.message);
     }
+  };
+
+  const renderProductCard = (item: MenuItem) => {
+    const rawPromo = item.promo_price ?? (item.usdzurl && !isNaN(Number(item.usdzurl)) ? Number(item.usdzurl) : null);
+    const hasPromo = rawPromo && Number(rawPromo) > 0 && Number(rawPromo) < item.price;
+    const itemCategories = (item.category || "").split(/[,;|]/).map(c => c.trim()).filter(Boolean);
+
+    return (
+      <div key={item.id} className="border border-zinc-200 rounded-2xl p-4 flex gap-4 hover:border-zinc-300 transition-all bg-white shadow-2xs">
+        <img 
+          src={item.image_urls?.[0] || "/products/especial-corta-la-fruta.png"} 
+          alt={item.name} 
+          className="w-20 h-20 rounded-xl object-cover bg-zinc-100 border border-zinc-200 shrink-0"
+        />
+        <div className="flex-1 min-w-0 flex flex-col justify-between">
+          <div>
+            <div className="flex items-start justify-between gap-2 mb-1">
+              <div className="min-w-0">
+                <h4 className="font-bold text-sm text-zinc-900 leading-tight truncate">{item.name}</h4>
+                <div className="flex flex-wrap gap-1 mt-1">
+                  {itemCategories.length > 0 ? (
+                    itemCategories.map((cat, idx) => (
+                      <span key={idx} className="text-[10px] bg-zinc-100 text-zinc-600 px-1.5 py-0.5 rounded font-medium">
+                        {cat}
+                      </span>
+                    ))
+                  ) : (
+                    <span className="text-[10px] bg-zinc-100 text-zinc-400 px-1.5 py-0.5 rounded italic">
+                      Sin categoría
+                    </span>
+                  )}
+                </div>
+              </div>
+              {hasPromo ? (
+                <div className="flex items-center gap-1.5 shrink-0">
+                  <span className="font-mono text-[10px] line-through text-zinc-400">
+                    ${item.price.toLocaleString("es-AR")}
+                  </span>
+                  <span className="font-mono text-xs font-extrabold text-rose-600 bg-rose-50 border border-rose-200 px-1.5 py-0.5 rounded-md">
+                    ${Number(rawPromo).toLocaleString("es-AR")}
+                  </span>
+                  <span className="bg-rose-600 text-white text-[9px] font-black px-1.5 py-0.5 rounded shadow-xs">
+                    OFERTA
+                  </span>
+                </div>
+              ) : (
+                <span className="font-mono text-xs font-extrabold text-zinc-900 bg-zinc-100 px-2 py-0.5 rounded-md shrink-0">
+                  ${item.price.toLocaleString("es-AR")}
+                </span>
+              )}
+            </div>
+            <p className="text-zinc-500 text-xs leading-relaxed line-clamp-2 mt-1">{item.description}</p>
+          </div>
+          
+          <div className="mt-3 pt-2 border-t border-zinc-100 flex items-center justify-between text-[11px] text-zinc-500">
+            {item.glburl ? (
+              <span className="flex items-center gap-1 font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-md border border-emerald-100">
+                <Box size={13} /> Con Modelo 3D
+              </span>
+            ) : (
+              <span className="text-zinc-400 text-[10px]">Solo imagen</span>
+            )}
+            
+            <div className="flex items-center gap-1">
+              <button 
+                onClick={() => handleOpenProductModal(item.category, item)} 
+                className="p-1.5 text-zinc-500 hover:text-zinc-900 rounded-lg hover:bg-zinc-100 transition-colors cursor-pointer"
+                title="Editar producto"
+              >
+                <Edit2 size={14} />
+              </button>
+              <button 
+                onClick={() => handleDeleteProduct(item.id, item.name)} 
+                className="p-1.5 text-zinc-400 hover:text-red-600 rounded-lg hover:bg-red-50 transition-colors cursor-pointer"
+                title="Eliminar producto"
+              >
+                <Trash2 size={14} />
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
   };
 
   // Loading Session Screen
@@ -2075,167 +2169,231 @@ export default function CortaLaFrutaAdminPage() {
               </div>
             )}
 
+            {/* Search & Filter Bar */}
+            <div className="mb-6 bg-white p-4 rounded-2xl border border-zinc-200 shadow-2xs flex flex-col sm:flex-row gap-3 items-stretch sm:items-center justify-between">
+              <div className="relative flex-1">
+                <Search size={18} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-zinc-400" />
+                <input
+                  type="text"
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  placeholder="Buscar producto por nombre, categoría o descripción..."
+                  className="w-full pl-10 pr-9 py-2.5 bg-zinc-50 border border-zinc-200 focus:border-emerald-600 focus:bg-white rounded-xl text-xs sm:text-sm font-medium outline-none transition-all"
+                />
+                {searchQuery && (
+                  <button
+                    onClick={() => setSearchQuery("")}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-zinc-400 hover:text-zinc-600 p-0.5"
+                    title="Limpiar búsqueda"
+                  >
+                    <X size={16} />
+                  </button>
+                )}
+              </div>
+
+              <div className="flex items-center gap-2">
+                <select
+                  value={selectedCategoryFilter}
+                  onChange={(e) => setSelectedCategoryFilter(e.target.value)}
+                  className="px-3.5 py-2.5 bg-zinc-50 border border-zinc-200 rounded-xl text-xs font-bold text-zinc-700 outline-none focus:border-emerald-600 cursor-pointer"
+                >
+                  <option value="all">Todas las categorías ({items.length})</option>
+                  {categoriesList.map((cat) => {
+                    const count = items.filter((i) => {
+                      const cats = (i.category || "").split(/[,;|]/).map(c => c.trim().toLowerCase());
+                      return cats.includes(cat.toLowerCase()) || (i.category || "").toLowerCase() === cat.toLowerCase();
+                    }).length;
+                    return (
+                      <option key={cat} value={cat}>
+                        {cat} ({count})
+                      </option>
+                    );
+                  })}
+                </select>
+
+                <button
+                  onClick={() => handleOpenProductModal(categoriesList[0] || "Ensaladas")}
+                  className="bg-emerald-700 hover:bg-emerald-800 text-white px-3.5 py-2.5 rounded-xl text-xs font-bold transition-all shadow-xs flex items-center gap-1.5 shrink-0"
+                >
+                  <Plus size={16} />
+                  <span className="hidden sm:inline">Nuevo Producto</span>
+                </button>
+              </div>
+            </div>
+
+            {/* Instant Search Results Section */}
+            {searchQuery.trim() ? (
+              <div className="bg-white rounded-2xl border border-emerald-200 p-5 shadow-xs mb-8">
+                <div className="flex items-center justify-between mb-4 pb-3 border-b border-zinc-100">
+                  <h3 className="font-extrabold text-base text-zinc-900 flex items-center gap-2">
+                    <Search size={18} className="text-emerald-700" />
+                    <span>
+                      Resultados para &quot;{searchQuery.trim()}&quot; ({
+                        items.filter(item => {
+                          const q = searchQuery.trim().toLowerCase();
+                          return item.name.toLowerCase().includes(q) ||
+                            (item.description || "").toLowerCase().includes(q) ||
+                            (item.category || "").toLowerCase().includes(q) ||
+                            item.id.toLowerCase().includes(q);
+                        }).length
+                      })
+                    </span>
+                  </h3>
+                  <button
+                    onClick={() => setSearchQuery("")}
+                    className="text-xs text-emerald-700 hover:underline font-bold cursor-pointer"
+                  >
+                    Limpiar búsqueda
+                  </button>
+                </div>
+                {(() => {
+                  const q = searchQuery.trim().toLowerCase();
+                  const results = items.filter(item => 
+                    item.name.toLowerCase().includes(q) ||
+                    (item.description || "").toLowerCase().includes(q) ||
+                    (item.category || "").toLowerCase().includes(q) ||
+                    item.id.toLowerCase().includes(q)
+                  );
+                  if (results.length === 0) {
+                    return (
+                      <p className="text-sm text-zinc-500 py-6 text-center italic">
+                        No se encontraron productos que coincidan con &quot;{searchQuery}&quot;.
+                      </p>
+                    );
+                  }
+                  return (
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      {results.map(item => renderProductCard(item))}
+                    </div>
+                  );
+                })()}
+              </div>
+            ) : null}
+
             {/* Categories & Products List */}
             <div className="space-y-8">
-          {categoriesList.map((catName) => {
-            const categoryItems = items.filter(i => i.category === catName);
+              {(selectedCategoryFilter === "all" ? categoriesList : categoriesList.filter(c => c === selectedCategoryFilter)).map((catName) => {
+                const categoryItems = items.filter(i => {
+                  const cats = (i.category || "").split(/[,;|]/).map(c => c.trim().toLowerCase());
+                  return cats.includes(catName.toLowerCase()) || (i.category || "").toLowerCase() === catName.toLowerCase();
+                });
 
-            return (
-              <div key={catName} className="bg-white rounded-2xl border border-zinc-200 overflow-hidden shadow-2xs">
-                
-                {/* Category Header */}
-                <div className="bg-zinc-50/90 px-5 sm:px-6 py-4 border-b border-zinc-200 flex flex-wrap justify-between items-center gap-3">
-                  {editingCategoryOldName === catName ? (
-                    <div className="flex items-center gap-2 flex-1 max-w-md">
-                      <input 
-                        type="text" 
-                        value={editingCategoryNewName}
-                        onChange={(e) => setEditingCategoryNewName(e.target.value)}
-                        className="text-base font-extrabold border border-zinc-300 rounded-xl px-3 py-1 bg-white focus:outline-none focus:ring-2 focus:ring-emerald-700 w-full"
-                        autoFocus
-                      />
-                      <button 
-                        onClick={() => handleSaveCategoryName(catName)} 
-                        className="p-2 text-emerald-700 hover:bg-emerald-50 rounded-xl"
-                        title="Guardar nombre"
-                      >
-                        <Save size={16} />
-                      </button>
-                      <button 
-                        onClick={() => setEditingCategoryOldName(null)} 
-                        className="p-2 text-zinc-400 hover:bg-zinc-200 rounded-xl"
-                      >
-                        <X size={16} />
-                      </button>
-                    </div>
-                  ) : (
-                    <div className="flex items-center gap-3">
-                      <h3 className="font-extrabold text-base sm:text-lg text-zinc-900">{catName}</h3>
-                      <span className="text-[11px] bg-zinc-200 text-zinc-700 px-2.5 py-0.5 rounded-full font-bold">
-                        {categoryItems.length} {categoryItems.length === 1 ? "producto" : "productos"}
-                      </span>
-                      <button 
-                        onClick={() => {
-                          setEditingCategoryOldName(catName);
-                          setEditingCategoryNewName(catName);
-                        }} 
-                        className="text-zinc-400 hover:text-zinc-700 p-1 transition-colors"
-                        title="Renombrar categoría"
-                      >
-                        <Edit2 size={14} />
-                      </button>
-                    </div>
-                  )}
-                  
-                  <div className="flex items-center gap-2">
-                    <button 
-                      onClick={() => handleOpenProductModal(catName)}
-                      className="text-xs font-bold text-emerald-800 hover:text-emerald-950 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 px-3 py-1.5 rounded-xl flex items-center gap-1.5 transition-colors"
-                    >
-                      <Plus size={14} /> 
-                      <span>Nuevo Producto</span>
-                    </button>
-                    <button 
-                      onClick={() => handleDeleteCategory(catName)} 
-                      className="text-zinc-400 hover:text-red-600 p-1.5 rounded-xl hover:bg-red-50 transition-colors"
-                      title="Eliminar categoría"
-                    >
-                      <Trash2 size={16} />
-                    </button>
-                  </div>
-                </div>
-
-                {/* Items Grid */}
-                <div className="p-5 sm:p-6">
-                  {categoryItems.length === 0 ? (
-                    <div className="text-center py-10 text-zinc-400 text-xs italic bg-zinc-50 rounded-xl border border-dashed border-zinc-200 space-y-2">
-                      <Package size={28} className="mx-auto opacity-30 stroke-1" />
-                      <p>Sin productos registrados en esta categoría.</p>
-                      <button
-                        onClick={() => handleOpenProductModal(catName)}
-                        className="text-xs font-bold text-emerald-700 hover:underline"
-                      >
-                        + Agregar el primer producto
-                      </button>
-                    </div>
-                  ) : (
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                      {categoryItems.map(item => (
-                        <div key={item.id} className="border border-zinc-200 rounded-2xl p-4 flex gap-4 hover:border-zinc-300 transition-all bg-white shadow-2xs">
-                          <img 
-                            src={item.image_urls?.[0] || "/products/especial-corta-la-fruta.png"} 
-                            alt={item.name} 
-                            className="w-20 h-20 rounded-xl object-cover bg-zinc-100 border border-zinc-200 shrink-0"
+                return (
+                  <div key={catName} className="bg-white rounded-2xl border border-zinc-200 overflow-hidden shadow-2xs">
+                    
+                    {/* Category Header */}
+                    <div className="bg-zinc-50/90 px-5 sm:px-6 py-4 border-b border-zinc-200 flex flex-wrap justify-between items-center gap-3">
+                      {editingCategoryOldName === catName ? (
+                        <div className="flex items-center gap-2 flex-1 max-w-md">
+                          <input 
+                            type="text" 
+                            value={editingCategoryNewName}
+                            onChange={(e) => setEditingCategoryNewName(e.target.value)}
+                            className="text-base font-extrabold border border-zinc-300 rounded-xl px-3 py-1 bg-white focus:outline-none focus:ring-2 focus:ring-emerald-700 w-full"
+                            autoFocus
                           />
-                          <div className="flex-1 min-w-0 flex flex-col justify-between">
-                            <div>
-                              <div className="flex items-start justify-between gap-2 mb-1">
-                                <h4 className="font-bold text-sm text-zinc-900 leading-tight truncate">{item.name}</h4>
-                                {(() => {
-                                  const rawPromo = item.promo_price ?? (item.usdzurl && !isNaN(Number(item.usdzurl)) ? Number(item.usdzurl) : null);
-                                  const hasPromo = rawPromo && Number(rawPromo) > 0 && Number(rawPromo) < item.price;
-                                  if (hasPromo) {
-                                    return (
-                                      <div className="flex items-center gap-1.5 shrink-0">
-                                        <span className="font-mono text-[10px] line-through text-zinc-400">
-                                          ${item.price.toLocaleString("es-AR")}
-                                        </span>
-                                        <span className="font-mono text-xs font-extrabold text-rose-600 bg-rose-50 border border-rose-200 px-1.5 py-0.5 rounded-md">
-                                          ${Number(rawPromo).toLocaleString("es-AR")}
-                                        </span>
-                                        <span className="bg-rose-600 text-white text-[9px] font-black px-1.5 py-0.5 rounded shadow-xs">
-                                          OFERTA
-                                        </span>
-                                      </div>
-                                    );
-                                  }
-                                  return (
-                                    <span className="font-mono text-xs font-extrabold text-zinc-900 bg-zinc-100 px-2 py-0.5 rounded-md shrink-0">
-                                      ${item.price.toLocaleString("es-AR")}
-                                    </span>
-                                  );
-                                })()}
-                              </div>
-                              <p className="text-zinc-500 text-xs leading-relaxed line-clamp-2">{item.description}</p>
-                            </div>
-                            
-                            <div className="mt-3 pt-2 border-t border-zinc-100 flex items-center justify-between text-[11px] text-zinc-500">
-                              {item.glburl ? (
-                                <span className="flex items-center gap-1 font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-md border border-emerald-100">
-                                  <Box size={13} /> Con Modelo 3D
-                                </span>
-                              ) : (
-                                <span className="text-zinc-400 text-[10px]">Solo imagen</span>
-                              )}
-                              
-                              <div className="flex items-center gap-1">
-                                <button 
-                                  onClick={() => handleOpenProductModal(item.category, item)} 
-                                  className="p-1.5 text-zinc-500 hover:text-zinc-900 rounded-lg hover:bg-zinc-100 transition-colors"
-                                  title="Editar producto"
-                                >
-                                  <Edit2 size={14} />
-                                </button>
-                                <button 
-                                  onClick={() => handleDeleteProduct(item.id, item.name)} 
-                                  className="p-1.5 text-zinc-400 hover:text-red-600 rounded-lg hover:bg-red-50 transition-colors"
-                                  title="Eliminar producto"
-                                >
-                                  <Trash2 size={14} />
-                                </button>
-                              </div>
-                            </div>
-                          </div>
+                          <button 
+                            onClick={() => handleSaveCategoryName(catName)} 
+                            className="p-2 text-emerald-700 hover:bg-emerald-50 rounded-xl cursor-pointer"
+                            title="Guardar nombre"
+                          >
+                            <Save size={16} />
+                          </button>
+                          <button 
+                            onClick={() => setEditingCategoryOldName(null)} 
+                            className="p-2 text-zinc-400 hover:bg-zinc-200 rounded-xl cursor-pointer"
+                          >
+                            <X size={16} />
+                          </button>
                         </div>
-                      ))}
+                      ) : (
+                        <div className="flex items-center gap-3">
+                          <h3 className="font-extrabold text-base sm:text-lg text-zinc-900">{catName}</h3>
+                          <span className="text-[11px] bg-zinc-200 text-zinc-700 px-2.5 py-0.5 rounded-full font-bold">
+                            {categoryItems.length} {categoryItems.length === 1 ? "producto" : "productos"}
+                          </span>
+                          <button 
+                            onClick={() => {
+                              setEditingCategoryOldName(catName);
+                              setEditingCategoryNewName(catName);
+                            }} 
+                            className="text-zinc-400 hover:text-zinc-700 p-1 transition-colors cursor-pointer"
+                            title="Renombrar categoría"
+                          >
+                            <Edit2 size={14} />
+                          </button>
+                        </div>
+                      )}
+                      
+                      <div className="flex items-center gap-2">
+                        <button 
+                          onClick={() => handleOpenProductModal(catName)}
+                          className="text-xs font-bold text-emerald-800 hover:text-emerald-950 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 px-3 py-1.5 rounded-xl flex items-center gap-1.5 transition-colors cursor-pointer"
+                        >
+                          <Plus size={14} /> 
+                          <span>Nuevo Producto</span>
+                        </button>
+                        <button 
+                          onClick={() => handleDeleteCategory(catName)} 
+                          className="text-zinc-400 hover:text-red-600 p-1.5 rounded-xl hover:bg-red-50 transition-colors cursor-pointer"
+                          title="Eliminar categoría"
+                        >
+                          <Trash2 size={16} />
+                        </button>
+                      </div>
                     </div>
-                  )}
-                </div>
 
-              </div>
-            );
-          })}
-        </div>
+                    {/* Items Grid */}
+                    <div className="p-5 sm:p-6">
+                      {categoryItems.length === 0 ? (
+                        <div className="text-center py-10 text-zinc-400 text-xs italic bg-zinc-50 rounded-xl border border-dashed border-zinc-200 space-y-2">
+                          <Package size={28} className="mx-auto opacity-30 stroke-1" />
+                          <p>Sin productos registrados en esta categoría.</p>
+                          <button
+                            onClick={() => handleOpenProductModal(catName)}
+                            className="text-xs font-bold text-emerald-700 hover:underline cursor-pointer"
+                          >
+                            + Agregar el primer producto
+                          </button>
+                        </div>
+                      ) : (
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                          {categoryItems.map(item => renderProductCard(item))}
+                        </div>
+                      )}
+                    </div>
+
+                  </div>
+                );
+              })}
+
+              {/* Orphan / Uncategorized products section if any */}
+              {selectedCategoryFilter === "all" && (() => {
+                const uncategorizedItems = items.filter(i => {
+                  const cats = (i.category || "").split(/[,;|]/).map(c => c.trim().toLowerCase()).filter(Boolean);
+                  return cats.length === 0 || !cats.some(c => categoriesList.map(cl => cl.toLowerCase()).includes(c));
+                });
+                if (uncategorizedItems.length === 0) return null;
+
+                return (
+                  <div className="bg-amber-50/50 rounded-2xl border border-amber-200 overflow-hidden shadow-2xs">
+                    <div className="bg-amber-100/70 px-5 sm:px-6 py-4 border-b border-amber-200 flex justify-between items-center">
+                      <div className="flex items-center gap-3">
+                        <h3 className="font-extrabold text-base sm:text-lg text-amber-950">Otros / Sin categoría asignada</h3>
+                        <span className="text-[11px] bg-amber-200 text-amber-900 px-2.5 py-0.5 rounded-full font-bold">
+                          {uncategorizedItems.length} {uncategorizedItems.length === 1 ? "producto" : "productos"}
+                        </span>
+                      </div>
+                    </div>
+                    <div className="p-5 sm:p-6">
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        {uncategorizedItems.map(item => renderProductCard(item))}
+                      </div>
+                    </div>
+                  </div>
+                );
+              })()}
+            </div>
       </>
     )}
 
@@ -2273,6 +2431,9 @@ export default function CortaLaFrutaAdminPage() {
                   onChange={e => setEditingProduct({ ...editingProduct, category: e.target.value })}
                   className="w-full border border-zinc-300 focus:border-emerald-600 rounded-xl px-3 py-2 outline-none font-medium text-zinc-800 bg-white"
                 >
+                  {editingProduct.category && !categoriesList.includes(editingProduct.category) && (
+                    <option value={editingProduct.category}>{editingProduct.category} (Actual)</option>
+                  )}
                   {categoriesList.map(cat => (
                     <option key={cat} value={cat}>{cat}</option>
                   ))}
@@ -2600,11 +2761,20 @@ export default function CortaLaFrutaAdminPage() {
               </button>
               <button 
                 onClick={handleSaveProduct}
-                disabled={!editingProduct.name || !editingProduct.price || isUploadingImage || isUploadingGlb}
+                disabled={!editingProduct.name || !editingProduct.price || isUploadingImage || isUploadingGlb || isSavingProduct}
                 className="px-6 py-2.5 rounded-xl bg-emerald-700 hover:bg-emerald-800 text-white text-xs font-bold transition-all disabled:opacity-50 shadow-md flex items-center gap-2"
               >
-                <Save size={16} />
-                <span>Guardar Producto</span>
+                {isSavingProduct ? (
+                  <>
+                    <Loader2 size={16} className="animate-spin" />
+                    <span>Guardando...</span>
+                  </>
+                ) : (
+                  <>
+                    <Save size={16} />
+                    <span>Guardar Producto</span>
+                  </>
+                )}
               </button>
             </div>
 
